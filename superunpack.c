@@ -152,7 +152,6 @@ int main(int argc, char *argv[])
 	LpMetadataHeader header;
 	unsigned char i;
 	unsigned char progress;
-	char ch;
 	unsigned long long pos;
 	FILE *rom = NULL;
 
@@ -209,6 +208,14 @@ int main(int argc, char *argv[])
 
 	fseeko64(rom, LP_PARTITION_RESERVED_BYTES * 3, SEEK_SET);
 	fread_unus_res(&header, sizeof(struct LpMetadataHeader), 1, rom);
+
+	if (header.magic != LP_METADATA_HEADER_MAGIC)
+	{
+		printf("\nWrong LpMetadataHeader magic!\n");
+		fclose(rom);
+		ret = -1;
+		goto die;
+	}
 
 	if (header.major_version != LP_METADATA_MAJOR_VERSION)
 	{
@@ -348,7 +355,15 @@ int main(int argc, char *argv[])
 
 			while(1)
 			{
-				ch = fgetc(rom);
+				if (fread(temp, 512, 1, rom) != 1)
+				{
+					printf("Error reading 512 bytes!\n");
+					free(outname);
+					fclose(out);
+					fclose(rom);
+					ret = -1;
+					goto die;
+				}
     
 				if (!feof(rom) && (pos < (extent.num_sectors * 512)))
 				{
@@ -358,14 +373,22 @@ int main(int argc, char *argv[])
 							break;
 					}
 
-					fputc(ch, out);
+					if (fwrite(temp, 512, 1, out) != 1)
+					{
+						printf("Error writing 512 bytes!\n");
+						free(outname);
+						fclose(out);
+						fclose(rom);
+						ret = -1;
+						goto die;
+					}
 				}
 				else
 				{
 					break;
 				}
 
-				++pos;
+				pos += 512;
 
 				if ((pos % 8388608ULL) == 0)
 				{
