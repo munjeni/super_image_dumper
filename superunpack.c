@@ -344,7 +344,7 @@ int main(int argc, char *argv[])
 			FILE *out = fopen64(outname, "wb");
 			if (out == NULL)
 			{
-				printf("Unable to open %s for write!\n", partition.name);
+				printf("Unable to open %s for write!\n", outname);
 				free(outname);
 				fclose(rom);
 				ret = -1;
