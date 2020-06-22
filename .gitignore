@@ -1,0 +1,12 @@
+/superunpack.exe
+/superunpack.x64
+/superunpack.i386
+/superunpack.arm32
+/superunpack.arm32_pie
+/superunpack.arm64
+/superunpack.arm64_pie
+/superunpack.i386-apple-darwin11
+/superunpack.x86_64-apple-darwin11
+/superunpack.rc
+/superunpack.res
+
