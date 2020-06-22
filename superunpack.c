@@ -280,7 +280,7 @@ int main(int argc, char *argv[])
 		fseeko64(rom, (LP_PARTITION_RESERVED_BYTES * 3) + header.header_size + header.groups.offset + (partition.group_index * header.groups.entry_size), SEEK_SET);
 		fread_unus_res(&partition_group, sizeof(struct LpMetadataPartitionGroup), 1, rom);
 
-		printf("\n  partition_%d_name = %s%s\n", (i+1), partition.name, (partition.num_extents == 0) ? " (not unused)" : "");
+		printf("\n  partition_%d_name = %s%s\n", (i+1), partition.name, (partition.num_extents == 0) ? " (unused)" : "");
 		printf("    attributes = 0x%x\n", partition.attributes);
 		printf("    first_extent_index = 0x%x\n", partition.first_extent_index);
 		printf("    num_extents = 0x%x\n", partition.num_extents);
