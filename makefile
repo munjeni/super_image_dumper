@@ -17,6 +17,8 @@ CCAPPLESTRIP=/home/savan/Desktop/osxtoolchain/osxcross/target/bin/i386-apple-dar
 CC=gcc
 STRIP=strip
 
+NDK_BUILD := NDK_PROJECT_PATH=. /root/ndk/android-ndk-r21d/ndk-build NDK_APPLICATION_MK=./Application.mk
+
 CFLAGS=-Wall -O2 -Iinclude
 CROSS_CFLAGS=${CFLAGS} -Iinclude
 
@@ -24,7 +26,7 @@ CROSS_CFLAGS=${CFLAGS} -Iinclude
 default: superunpack
 
 .PHONY: cross
-cross: superunpack.exe superunpack.x64 superunpack.i386 superunpack.arm32 superunpack.arm32_pie superunpack.arm64 superunpack.arm64_pie superunpack.i386-apple-darwin11 superunpack.x86_64-apple-darwin11
+cross: superunpack.exe superunpack.x64 superunpack.i386 superunpack.arm32 superunpack.arm64 superunpack.arm64_pie superunpack.i386-apple-darwin11 superunpack.x86_64-apple-darwin11
 
 superunpack: superunpack.c version.h
 	${CC} ${CFLAGS} $< -o $@
@@ -47,17 +49,14 @@ superunpack.arm32: superunpack.c version.h
 	${ARMCC} ${CROSS_CFLAGS} -static superunpack.c -o superunpack.arm32
 	${ARMSTRIP} superunpack.arm32
 
-superunpack.arm32_pie:
-	@cp -fr superunpack.arm32 superunpack.arm32_pie
-	@dd if=pie of=superunpack.arm32_pie bs=1 count=1 seek=16 conv=notrunc
-
 superunpack.arm64: superunpack.c version.h
 	${ARMCC64} ${CROSS_CFLAGS} -static superunpack.c -o superunpack.arm64
 	${ARMSTRIP64} superunpack.arm64
 
 superunpack.arm64_pie:
-	@cp -fr superunpack.arm64 superunpack.arm64_pie
-	@dd if=pie of=superunpack.arm64_pie bs=1 count=1 seek=16 conv=notrunc
+	@echo "Building Android pie binary"
+	${NDK_BUILD}
+	@cp -fr libs/arm64-v8a/superunpack.arm64_pie ./superunpack.arm64_pie
 
 superunpack.i386-apple-darwin11: superunpack.c version.h
 	${CCAPPLE} ${CROSS_CFLAGS} superunpack.c -o superunpack.i386-apple-darwin11
@@ -69,8 +68,8 @@ superunpack.x86_64-apple-darwin11: superunpack.c version.h
 
 .PHONY: clean
 clean:
-	rm -rf *.o *.rc *.res
+	rm -rf *.o *.rc *.res libs obj
 
 .PHONY: distclean
 distclean:
-	rm -rf *.o *.rc *.res superunpack.exe superunpack.x64 superunpack.i386 superunpack.arm32 superunpack.arm32_pie superunpack.arm64 superunpack.arm64_pie superunpack.i386-apple-darwin11 superunpack.x86_64-apple-darwin11 superunpack
+	rm -rf *.o *.rc *.res libs obj superunpack.exe superunpack.x64 superunpack.i386 superunpack.arm32 superunpack.arm64 superunpack.arm64_pie superunpack.i386-apple-darwin11 superunpack.x86_64-apple-darwin11 superunpack

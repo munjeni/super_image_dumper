@@ -9,4 +9,5 @@
 /superunpack.x86_64-apple-darwin11
 /superunpack.rc
 /superunpack.res
-
+/libs
+/obj
