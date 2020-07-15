@@ -2,7 +2,7 @@ This *experimental* software allows you to extract logical partitions from an su
 
 ### Usage
 
-- You must first extract superimage e.g. from an super.sin file (Sony firmare) using tool "search xda for unpack any sony firmware" or use another tool "search xda for unsin"
+- First you must extract superimage e.g. from an super.sin file (Sony firmare) with an tool - search xda for unpack any sony firmware - or use another tool - search xda for unsin
 - Run our superunpack tool from command line or if you are on Windows just drop superimage onto superunpack.exe 
 
 ### Build (native)

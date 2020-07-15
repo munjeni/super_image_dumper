@@ -16,11 +16,16 @@ CCAPPLESTRIP=/home/savan/Desktop/osxtoolchain/osxcross/target/bin/i386-apple-dar
 
 CC=gcc
 STRIP=strip
+INSTALL=install
+
+DESTDIR=
 
 NDK_BUILD := NDK_PROJECT_PATH=. /root/ndk/android-ndk-r21d/ndk-build NDK_APPLICATION_MK=./Application.mk
 
-CFLAGS=-Wall -O2 -Iinclude
-CROSS_CFLAGS=${CFLAGS} -Iinclude
+VERSION := $(shell sed 's/^.*VERSION //' version.h)
+
+CFLAGS=-Wall -g -O2 -Iinclude
+CROSS_CFLAGS=${CFLAGS}
 
 .PHONY: default
 default: superunpack
@@ -31,8 +36,8 @@ cross: superunpack.exe superunpack.x64 superunpack.i386 superunpack.arm32 superu
 superunpack: superunpack.c version.h
 	${CC} ${CFLAGS} $< -o $@
 
-superunpack.exe: superunpack.c version.h superunpack.rc.in
-	sed "s/@VERSION@/$$(sed 's/^.*VERSION //' version.h)/" superunpack.rc.in >superunpack.rc
+superunpack.exe: superunpack.c version.h
+	sed "s/@VERSION@/$(VERSION)/" superunpack.rc.in >superunpack.rc
 	${WINDRES} superunpack.rc -O coff -o superunpack.res
 	${CCWIN} ${CROSS_CFLAGS} -static -mno-ms-bitfields superunpack.c superunpack.res -o superunpack.exe
 	${CCWINSTRIP} superunpack.exe
@@ -66,10 +71,20 @@ superunpack.x86_64-apple-darwin11: superunpack.c version.h
 	${CCAPPLE64} ${CROSS_CFLAGS} superunpack.c -o superunpack.x86_64-apple-darwin11
 	${CCAPPLESTRIP64} superunpack.x86_64-apple-darwin11
 
+superunpack.1.gz: superunpack.1
+	gzip -9fkn superunpack.1
+
+.PHONY: install
+install: superunpack superunpack.1.gz
+	$(INSTALL) -o root -g root -d $(DESTDIR)/usr/bin
+	$(INSTALL) -o root -g root -m 755 -s superunpack $(DESTDIR)/usr/bin/
+	$(INSTALL) -o root -g root -d $(DESTDIR)/usr/share/man/man1
+	$(INSTALL) -o root -g root -m 644 -s superunpack.1.gz $(DESTDIR)/usr/share/man/man1
+
 .PHONY: clean
 clean:
-	rm -rf *.o *.rc *.res libs obj
+	rm -rf *.gz *.o *.rc *.res libs obj
 
 .PHONY: distclean
 distclean:
-	rm -rf *.o *.rc *.res libs obj superunpack.exe superunpack.x64 superunpack.i386 superunpack.arm32 superunpack.arm64 superunpack.arm64_pie superunpack.i386-apple-darwin11 superunpack.x86_64-apple-darwin11 superunpack
+	rm -rf *.gz *.o *.rc *.res libs obj superunpack.exe superunpack.x64 superunpack.i386 superunpack.arm32 superunpack.arm64 superunpack.arm64_pie superunpack.i386-apple-darwin11 superunpack.x86_64-apple-darwin11 superunpack
