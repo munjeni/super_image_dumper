@@ -11,7 +11,7 @@ Download, build and install, assuming that `~/bin` is in `$PATH`:
 
     git clone https://github.com/munjeni/super_image_dumper.git ~/.local/share/superunpack
     make -C ~/.local/share/superunpack
-    ln -s ../.local/share/superunpack/superunpack ~/bin
+    ln -s ~/.local/share/superunpack/superunpack ~/bin
 
 ### Build (cross, static)
 
