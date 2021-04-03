@@ -34,42 +34,60 @@ default: superunpack
 cross: superunpack.exe superunpack.x64 superunpack.i386 superunpack.arm32 superunpack.arm64 superunpack.arm64_pie superunpack.i386-apple-darwin11 superunpack.x86_64-apple-darwin11
 
 superunpack: superunpack.c version.h
-	${CC} ${CFLAGS} $< -o $@
+	${CC} ${CFLAGS} superunpack.c -o superunpack
+	${CC} ${CFLAGS} superrepack.c -o superrepack
 
 superunpack.exe: superunpack.c version.h
 	sed "s/@VERSION@/$(VERSION)/" superunpack.rc.in >superunpack.rc
+	sed "s/@VERSION@/$(VERSION)/" superrepack.rc.in >superrepack.rc
 	${WINDRES} superunpack.rc -O coff -o superunpack.res
+	${WINDRES} superrepack.rc -O coff -o superrepack.res
 	${CCWIN} ${CROSS_CFLAGS} -static -mno-ms-bitfields superunpack.c superunpack.res -o superunpack.exe
+	${CCWIN} ${CROSS_CFLAGS} -static -mno-ms-bitfields superrepack.c superrepack.res -o superrepack.exe
 	${CCWINSTRIP} superunpack.exe
+	${CCWINSTRIP} superrepack.exe
 
 superunpack.x64: superunpack.c version.h
 	${CC} ${CROSS_CFLAGS} -static superunpack.c -o superunpack.x64
 	${STRIP} superunpack.x64
+	${CC} ${CROSS_CFLAGS} -static superrepack.c -o superrepack.x64
+	${STRIP} superrepack.x64
 
 superunpack.i386: superunpack.c version.h
 	${CC} ${CROSS_CFLAGS} -m32 -static superunpack.c -o superunpack.i386
 	${STRIP} superunpack.i386
+	${CC} ${CROSS_CFLAGS} -m32 -static superrepack.c -o superrepack.i386
+	${STRIP} superrepack.i386
 
 superunpack.arm32: superunpack.c version.h
 	${ARMCC} ${CROSS_CFLAGS} -static superunpack.c -o superunpack.arm32
 	${ARMSTRIP} superunpack.arm32
+	${ARMCC} ${CROSS_CFLAGS} -static superrepack.c -o superrepack.arm32
+	${ARMSTRIP} superrepack.arm32
 
 superunpack.arm64: superunpack.c version.h
 	${ARMCC64} ${CROSS_CFLAGS} -static superunpack.c -o superunpack.arm64
 	${ARMSTRIP64} superunpack.arm64
+	${ARMCC64} ${CROSS_CFLAGS} -static superrepack.c -o superrepack.arm64
+	${ARMSTRIP64} superrepack.arm64
 
 superunpack.arm64_pie:
 	@echo "Building Android pie binary"
 	${NDK_BUILD}
 	@cp -fr libs/arm64-v8a/superunpack.arm64_pie ./superunpack.arm64_pie
+	@cp -fr libs/arm64-v8a/superrepack.arm64_pie ./superrepack.arm64_pie
 
 superunpack.i386-apple-darwin11: superunpack.c version.h
 	${CCAPPLE} ${CROSS_CFLAGS} superunpack.c -o superunpack.i386-apple-darwin11
 	${CCAPPLESTRIP} superunpack.i386-apple-darwin11
+	${CCAPPLE} ${CROSS_CFLAGS} superrepack.c -o superrepack.i386-apple-darwin11
+	${CCAPPLESTRIP} superrepack.i386-apple-darwin11
 
 superunpack.x86_64-apple-darwin11: superunpack.c version.h
 	${CCAPPLE64} ${CROSS_CFLAGS} superunpack.c -o superunpack.x86_64-apple-darwin11
 	${CCAPPLESTRIP64} superunpack.x86_64-apple-darwin11
+	${CCAPPLE64} ${CROSS_CFLAGS} superrepack.c -o superrepack.x86_64-apple-darwin11
+	${CCAPPLESTRIP64} superrepack.x86_64-apple-darwin11
 
 superunpack.1.gz: superunpack.1
 	gzip -9fkn superunpack.1
@@ -78,6 +96,7 @@ superunpack.1.gz: superunpack.1
 install: superunpack superunpack.1.gz
 	$(INSTALL) -o root -g root -d $(DESTDIR)/usr/bin
 	$(INSTALL) -o root -g root -m 755 -s superunpack $(DESTDIR)/usr/bin/
+	$(INSTALL) -o root -g root -m 755 -s superrepack $(DESTDIR)/usr/bin/
 	$(INSTALL) -o root -g root -d $(DESTDIR)/usr/share/man/man1
 	$(INSTALL) -o root -g root -m 644 -s superunpack.1.gz $(DESTDIR)/usr/share/man/man1
 
@@ -88,3 +107,4 @@ clean:
 .PHONY: distclean
 distclean:
 	rm -rf *.gz *.o *.rc *.res libs obj superunpack.exe superunpack.x64 superunpack.i386 superunpack.arm32 superunpack.arm64 superunpack.arm64_pie superunpack.i386-apple-darwin11 superunpack.x86_64-apple-darwin11 superunpack
+	rm -rf superrepack.exe superrepack.x64 superrepack.i386 superrepack.arm32 superrepack.arm64 superrepack.arm64_pie superrepack.i386-apple-darwin11 superrepack.x86_64-apple-darwin11 superrepack

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Munjeni
+ * Copyright (C) 2021 Munjeni
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -153,31 +153,26 @@ int main(int argc, char *argv[])
 	LpMetadataGeometry geometry;
 	LpMetadataHeader header;
 	unsigned char i;
-	unsigned char progress;
-	unsigned long long pos;
 	FILE *rom = NULL;
-	bool make_rw = false;
 
 	int ret = 0;
 	char temp[0x500];
 	unsigned long long ext4_file_size;
 
+	unsigned int s_feature_ro_compat = 0;
+
 	printf("---------------------------------------------------------\n");
-	printf("Super image unpacker v_%d by munjeni @ xda 2020)\n", VERSION);
+	printf("Super image repacker v_%d by munjeni @ xda 2021)\n", VERSION);
 	printf("---------------------------------------------------------\n");
 
 	if (argc < 2)
 	{
-		printf("Usage:\n%s superimage\n", argv[0]);
-		printf("or to extract as a RW:\n%s superimage 1\n", argv[0]);
-#ifdef _WIN32
-		printf("Or drag and drop superimage to %s\n", argv[0]);
-#endif
+		printf("Usage:\n%s super.img\n", argv[0]);
 		printf("\n");
 		goto die;
 	}
 
-	rom = fopen64(argv[1], "rb");
+	rom = fopen64(argv[1], "rb+");
 
 	if (rom == NULL)
 	{
@@ -186,21 +181,12 @@ int main(int argc, char *argv[])
 		goto die;
 	}
 
-	if (argc == 3)
-	{
-		if (memcmp(argv[2], "1", 1) == 0)
-		{
-			printf("Dumping all partitions to RW mode!\n");
-			make_rw = true;
-		}
-	}
-
 	fseeko64(rom, LP_PARTITION_RESERVED_BYTES, SEEK_SET);
 	fread_unus_res(&geometry, sizeof(struct LpMetadataGeometry), 1, rom);
 
 	if (geometry.magic != LP_METADATA_GEOMETRY_MAGIC)
 	{
-		printf("\nThis is not super image!\n");
+		printf("\nThis is not super image! GM=0x%x\n", geometry.magic);
 		fclose(rom);
 		ret = -1;
 		goto die;
@@ -282,8 +268,6 @@ int main(int argc, char *argv[])
 		LpMetadataPartition partition;
 		LpMetadataPartitionGroup partition_group;
 		ext4_file_size = 0LL;
-		pos = 0LL;
-		progress = 0;
 
 		memset(temp, 0, sizeof(temp));
 
@@ -300,155 +284,34 @@ int main(int argc, char *argv[])
 		printf("    group_index = 0x%x\n", partition.group_index);
 		printf("    partition_group = %s\n", partition_group.name);
 
-		if (partition.num_extents > 0)
+		LpMetadataExtent extent;
+
+		fseeko64(rom, (LP_PARTITION_RESERVED_BYTES * 3) + header.header_size + header.extents.offset + (partition.first_extent_index * header.extents.entry_size), SEEK_SET);
+		fread_unus_res(&extent, sizeof(struct LpMetadataExtent), 1, rom);
+
+		printf("    extent num_sectors = 0x%llx (0x%llx bytes total)\n", extent.num_sectors, (extent.num_sectors * 512));
+		printf("    extent target_type = 0x%x\n", extent.target_type);
+		printf("    extent target_data = 0x%llx (dumping offset = 0x%llx)\n", extent.target_data, (extent.target_data * 512));
+		printf("    extent target_source = 0x%x\n", extent.target_source);
+
+		fseeko64(rom, (extent.target_data * 512), SEEK_SET);
+		fread_unus_res(temp, sizeof(temp), 1, rom);
+
+		if (memcmp(temp+0x438, "\x53\xef", 2) == 0)
 		{
-			LpMetadataExtent extent;
+			memcpy(&ext4_file_size, temp+0x404, sizeof(unsigned long long));
+			ext4_file_size *= 4096;
+			printf("      Partition: %s, Filetype EXT4. EXT4 size = 0x%llx\n", partition.name, ext4_file_size);
 
-			fseeko64(rom, (LP_PARTITION_RESERVED_BYTES * 3) + header.header_size + header.extents.offset + (partition.first_extent_index * header.extents.entry_size), SEEK_SET);
-			fread_unus_res(&extent, sizeof(struct LpMetadataExtent), 1, rom);
+			memcpy(&s_feature_ro_compat, temp, sizeof(unsigned int));
+			s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
+			fseeko64(rom, (extent.target_data * 512)+0x464, SEEK_SET);
+			fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, rom);
 
-			printf("    extent num_sectors = 0x%llx (0x%llx bytes total)\n", extent.num_sectors, (extent.num_sectors * 512));
-			printf("    extent target_type = 0x%x\n", extent.target_type);
-			printf("    extent target_data = 0x%llx (dumping offset = 0x%llx)\n", extent.target_data, (extent.target_data * 512));
-			printf("    extent target_source = 0x%x\n", extent.target_source);
-
-			char *outname = (char *)malloc(64);
-			if (outname == NULL)
-			{
-				printf("Unable to malloc 64 bytes for filename!\n");
-				fclose(rom);
-				ret = -1;
-				goto die;
-			}
-
-			fseeko64(rom, (extent.target_data * 512), SEEK_SET);
-			fread_unus_res(temp, sizeof(temp), 1, rom);
-
-			if (memcmp(temp, "\x7f\x45\x4c\x46", 4) == 0)
-			{
-				printf("      Filetype ELF.\n");
-				snprintf(outname, 64, "%s.elf", partition.name);
-			}
-			else if (memcmp(temp+0x438, "\x53\xef", 2) == 0)
-			{
-				memcpy(&ext4_file_size, temp+0x404, sizeof(unsigned long long));
-				ext4_file_size *= 4096;
-				printf("      Filetype EXT4. EXT4 size = 0x%llx\n", ext4_file_size);
-				snprintf(outname, 64, "%s.ext4", partition.name);
-			}
-			else if (memcmp(temp, "\xeb\x3c\x90", 3) == 0)
-			{
-				printf("      Filetype VFAT.\n");
-				snprintf(outname, 64, "%s.vfat", partition.name);
-			}
-			else if (memcmp(temp, "\x41\x4e\x44\x52", 4) == 0)
-			{
-				printf("      Filetype IMG.\n");
-				snprintf(outname, 64, "%s.img", partition.name);
-			}
-			else
-			{
-				printf("      Filetype BIN.\n");
-				snprintf(outname, 64, "%s.bin", partition.name);
-			}
-
-			printf("      Dumping %s%s ...\n      ", outname, make_rw ? " to RW mode" : "");
-
-			FILE *out = fopen64(outname, "wb");
-			if (out == NULL)
-			{
-				printf("Unable to open %s for write!\n", outname);
-				free(outname);
-				fclose(rom);
-				ret = -1;
-				goto die;
-			}
-
-			fseeko64(rom, (extent.target_data * 512), SEEK_SET);
-
-			while(1)
-			{
-				if (fread(temp, 512, 1, rom) != 1)
-				{
-					printf("Error reading 512 bytes!\n");
-					free(outname);
-					fclose(out);
-					fclose(rom);
-					ret = -1;
-					goto die;
-				}
-    
-				if (!feof(rom) && (pos < (extent.num_sectors * 512)))
-				{
-					if (ext4_file_size)
-					{
-						if (pos >= ext4_file_size)
-							break;
-					}
-
-					if (fwrite(temp, 512, 1, out) != 1)
-					{
-						printf("Error writing 512 bytes!\n");
-						free(outname);
-						fclose(out);
-						fclose(rom);
-						ret = -1;
-						goto die;
-					}
-				}
-				else
-				{
-					break;
-				}
-
-				pos += 512;
-
-				if ((pos % 8388608ULL) == 0)
-				{
-					progress += 1;
-					printf(".");
-					if (progress == 52) {
-						progress = 0;
-						printf("\n      ");
-					}
-				}
-			}
-
-			if (ext4_file_size)
-			{
-				unsigned int s_feature_ro_compat = 0;
-
-				if (ftello64(out) <= ext4_file_size)
-				{
-					char nn[1];
-					memset(nn, 0, sizeof(nn));
-					fseeko64(out, ext4_file_size - 1, SEEK_SET);
-					fread_unus_res(nn, 1, 1, out);
-					fseeko64(out, ext4_file_size - 1, SEEK_SET);
-					fwrite(nn, 1, 1, out);
-				}
-
-				if (make_rw)
-				{
-					fseeko64(out, 0x464, SEEK_SET);
-					fread_unus_res(&s_feature_ro_compat, sizeof(unsigned int), 1, out);
-					s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
-					fseeko64(out, 0x464, SEEK_SET);
-					fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, out);
-				}
-			}
-
-			free(outname);
-			fclose(out);
 		}
 		else
 		{
-			printf("    extent num_sectors = NULL\n");
-			printf("    extent target_type = NULL\n");
-			printf("    extent target_data = NULL\n");
-			printf("    extent target_source = NULL\n");
-
-			printf("      Skipping dump.\n");
+			printf("      Partition: %s, Filetype is not EXT4, skipping it.\n", partition.name);
 		}
 	}
 
