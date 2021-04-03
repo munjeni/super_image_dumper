@@ -138,6 +138,8 @@
 
 #include "metadata_format.h"
 
+#define EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS	0x4000
+
 void fread_unus_res(void *ptr, size_t size, size_t nmemb, FILE *stream) {
 	size_t in;
 	in = fread(ptr, size, nmemb, stream);
@@ -403,6 +405,9 @@ int main(int argc, char *argv[])
 
 			if (ext4_file_size)
 			{
+				char ch;
+				unsigned int s_feature_ro_compat = 0;
+
 				if (ftello64(out) <= ext4_file_size)
 				{
 					char nn[1];
@@ -411,6 +416,22 @@ int main(int argc, char *argv[])
 					fread_unus_res(nn, 1, 1, out);
 					fseeko64(out, ext4_file_size - 1, SEEK_SET);
 					fwrite(nn, 1, 1, out);
+				}
+
+				printf("\n      Do you want %s RW? Typa 'y' for confirm, type 'n' to skip, and press ENTER.\n", outname);
+
+				if (scanf(" %c", &ch)) { }
+				switch(ch)
+				{
+					case 'y':
+					case 'Y':
+						s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
+						fseeko64(out, 0x464, SEEK_SET);
+						fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, out);
+						break;
+
+					default:
+						break;
 				}
 			}
 
