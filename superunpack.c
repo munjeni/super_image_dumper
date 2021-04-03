@@ -156,18 +156,20 @@ int main(int argc, char *argv[])
 	unsigned char progress;
 	unsigned long long pos;
 	FILE *rom = NULL;
+	bool make_rw = false;
 
 	int ret = 0;
 	char temp[0x500];
 	unsigned long long ext4_file_size;
 
 	printf("---------------------------------------------------------\n");
-	printf("Super image dumper v_%d (by expert :) munjeni @ xda 2020)\n", VERSION);
+	printf("Super image dumper v_%d by munjeni @ xda 2020)\n", VERSION);
 	printf("---------------------------------------------------------\n");
 
 	if (argc < 2)
 	{
 		printf("Usage:\n%s superimage\n", argv[0]);
+		printf("or to extract as a RW:\n%s superimage 1\n", argv[0]);
 #ifdef _WIN32
 		printf("Or drag and drop superimage to %s\n", argv[0]);
 #endif
@@ -182,6 +184,15 @@ int main(int argc, char *argv[])
 		printf("Unable to open %s!\n", argv[1]);
 		ret = -1;
 		goto die;
+	}
+
+	if (argc == 3)
+	{
+		if (memcmp(argv[2], "1", 1) == 0)
+		{
+			printf("Dumping all partitions to RW mode!\n");
+			make_rw = true;
+		}
 	}
 
 	fseeko64(rom, LP_PARTITION_RESERVED_BYTES, SEEK_SET);
@@ -341,7 +352,7 @@ int main(int argc, char *argv[])
 				snprintf(outname, 64, "%s.bin", partition.name);
 			}
 
-			printf("      Dumping %s ...\n      ", outname);
+			printf("      Dumping %s%s ...\n      ", outname, make_rw ? " to RW mode" : "");
 
 			FILE *out = fopen64(outname, "wb");
 			if (out == NULL)
@@ -405,7 +416,6 @@ int main(int argc, char *argv[])
 
 			if (ext4_file_size)
 			{
-				char ch;
 				unsigned int s_feature_ro_compat = 0;
 
 				if (ftello64(out) <= ext4_file_size)
@@ -418,20 +428,11 @@ int main(int argc, char *argv[])
 					fwrite(nn, 1, 1, out);
 				}
 
-				printf("\n      Do you want %s RW? Typa 'y' for confirm, type 'n' to skip, and press ENTER.\n", outname);
-
-				if (scanf(" %c", &ch)) { }
-				switch(ch)
+				if (make_rw)
 				{
-					case 'y':
-					case 'Y':
-						s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
-						fseeko64(out, 0x464, SEEK_SET);
-						fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, out);
-						break;
-
-					default:
-						break;
+					s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
+					fseeko64(out, 0x464, SEEK_SET);
+					fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, out);
 				}
 			}
 
