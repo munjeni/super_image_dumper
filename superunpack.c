@@ -430,6 +430,8 @@ int main(int argc, char *argv[])
 
 				if (make_rw)
 				{
+					fseeko64(out, 0x464, SEEK_SET);
+					fread_unus_res(&s_feature_ro_compat, sizeof(unsigned int), 1, out);
 					s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
 					fseeko64(out, 0x464, SEEK_SET);
 					fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, out);
