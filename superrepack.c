@@ -303,7 +303,7 @@ int main(int argc, char *argv[])
 			ext4_file_size *= 4096;
 			printf("      Partition: %s, Filetype EXT4. EXT4 size = 0x%llx\n", partition.name, ext4_file_size);
 
-			memcpy(&s_feature_ro_compat, temp, sizeof(unsigned int));
+			memcpy(&s_feature_ro_compat, temp+0x464, sizeof(unsigned int));
 			s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
 			fseeko64(rom, (extent.target_data * 512)+0x464, SEEK_SET);
 			fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, rom);
