@@ -140,6 +140,9 @@
 
 #define EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS	0x4000
 
+#define RW 1
+#define RO 2
+
 void fread_unus_res(void *ptr, size_t size, size_t nmemb, FILE *stream) {
 	size_t in;
 	in = fread(ptr, size, nmemb, stream);
@@ -157,19 +160,50 @@ int main(int argc, char *argv[])
 
 	int ret = 0;
 	char temp[0x500];
+	char partit[64];
+	unsigned char partition_flag = 0;
 	unsigned long long ext4_file_size;
 
 	unsigned int s_feature_ro_compat = 0;
 
 	printf("---------------------------------------------------------\n");
 	printf("Super image repacker v_%d by munjeni @ xda 2021)\n", VERSION);
-	printf("---------------------------------------------------------\n");
+	printf("---------------------------------------------------------\n\n");
 
 	if (argc < 2)
 	{
-		printf("Usage:\n%s super.img\n", argv[0]);
+		printf("USAGE: (With no arguments all partitions going to be RW and shared_blocks removed!)\n");
+		printf("%s [image or block device] [search by string] [rw or ro]\n", argv[0]);
+		printf("%s super.img\n", argv[0]);
+		printf("%s /dev/block/by-name/super\n", argv[0]);
+		printf("%s super.img system_a rw\n", argv[0]);
+		printf("%s /dev/block/by-name/super system_a rw\n", argv[0]);
+		printf("%s super.img system_a ro\n", argv[0]);
+		printf("%s /dev/block/by-name/super system_a ro\n", argv[0]);
 		printf("\n");
 		goto die;
+	}
+
+	memset(partit, 0, sizeof(partit));
+
+	if (argc == 4)
+	{
+		strncpy(partit, argv[2], sizeof(partit));
+
+		if (memcmp(argv[3], "rw", 2) == 0)
+		{
+			partition_flag = RW;
+		}
+		else if(memcmp(argv[3], "ro", 2) == 0)
+		{
+			partition_flag = RO;
+		}
+
+		printf("Searching for partitions contain string: %s and making it: %s\n", partit, argv[3]);
+	}
+	else
+	{
+		printf("Unsharing blocks and making RW on all partitions!\n");
 	}
 
 	rom = fopen64(argv[1], "rb+");
@@ -301,13 +335,62 @@ int main(int argc, char *argv[])
 		{
 			memcpy(&ext4_file_size, temp+0x404, sizeof(unsigned long long));
 			ext4_file_size *= 4096;
-			printf("      Partition: %s, Filetype EXT4. EXT4 size = 0x%llx\n", partition.name, ext4_file_size);
+			printf("      Partition: %s, Filetype: EXT4, EXT4_size: 0x%llx\n", partition.name, ext4_file_size);
 
 			memcpy(&s_feature_ro_compat, temp+0x464, sizeof(unsigned int));
-			s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
-			fseeko64(rom, (extent.target_data * 512)+0x464, SEEK_SET);
-			fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, rom);
 
+			printf("      Current s_feature_ro_compat: %s\n", (s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS) ? "shared_blocks and RO" : "without shared_blocks, RW allready");
+
+			if (strlen(partit) > 0 && strstr(partition.name, partit) != NULL)
+			{
+				switch(partition_flag)
+				{
+					case RW:
+						if (s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS)
+						{
+							printf("      unsharing blocks and making RW\n");
+							s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
+							fseeko64(rom, (extent.target_data * 512)+0x464, SEEK_SET);
+							fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, rom);
+						}
+						break;
+
+					case RO:
+						if ((s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS) == 0)
+						{
+							printf("      adding feature shared_blocks and making RO\n");
+							s_feature_ro_compat |= EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
+							fseeko64(rom, (extent.target_data * 512)+0x464, SEEK_SET);
+							fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, rom);
+						}
+						break;
+
+					default:
+						printf("      you didn't type rw or ro, skipping.\n");
+						break;
+				}
+			}
+			else
+			{
+					if (argc == 4)
+					{
+						printf("      skipping.\n");
+					}
+					else
+					{
+						if (s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS)
+						{
+							printf("      unsharing blocks and making RW\n");
+							s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
+							fseeko64(rom, (extent.target_data * 512)+0x464, SEEK_SET);
+							fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, rom);
+						}
+						else
+						{
+							printf("      allready have unshared blocks and RW\n");
+						}
+					}
+			}
 		}
 		else
 		{
