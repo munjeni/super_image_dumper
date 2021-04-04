@@ -143,6 +143,14 @@
 #define RW 1
 #define RO 2
 
+// return codes
+#define RETURN_OK 0
+#define NO_ARGUMENTS 1
+#define UNABLE_TO_OPEN 2
+#define NOT_A_SUPER_IMAGE 3
+#define WRONG_LP_METADATA_HEADER_MAGIC 4
+#define UNSUPPORTED_METADATA_VERSION 5
+
 void fread_unus_res(void *ptr, size_t size, size_t nmemb, FILE *stream) {
 	size_t in;
 	in = fread(ptr, size, nmemb, stream);
@@ -155,15 +163,18 @@ int main(int argc, char *argv[])
 {
 	LpMetadataGeometry geometry;
 	LpMetadataHeader header;
-	unsigned char i;
+
+	unsigned char i=0;
+	unsigned char j=0;
+
 	FILE *rom = NULL;
 
-	int ret = 0;
+	int ret = RETURN_OK;
 	char temp[0x500];
 	char partit[64];
+	char partit_uuid[16];
 	unsigned char partition_flag = 0;
 	unsigned long long ext4_file_size;
-
 	unsigned int s_feature_ro_compat = 0;
 
 	printf("---------------------------------------------------------\n");
@@ -181,6 +192,7 @@ int main(int argc, char *argv[])
 		printf("%s super.img system_a ro\n", argv[0]);
 		printf("%s /dev/block/by-name/super system_a ro\n", argv[0]);
 		printf("\n");
+		ret = NO_ARGUMENTS;
 		goto die;
 	}
 
@@ -203,7 +215,7 @@ int main(int argc, char *argv[])
 	}
 	else
 	{
-		printf("Unsharing blocks and making RW on all partitions!\n");
+		printf("Removing shared_blocks and making RW on all partitions!\n");
 	}
 
 	rom = fopen64(argv[1], "rb+");
@@ -211,7 +223,7 @@ int main(int argc, char *argv[])
 	if (rom == NULL)
 	{
 		printf("Unable to open %s!\n", argv[1]);
-		ret = -1;
+		ret = UNABLE_TO_OPEN;
 		goto die;
 	}
 
@@ -222,7 +234,7 @@ int main(int argc, char *argv[])
 	{
 		printf("\nThis is not super image! GM=0x%x\n", geometry.magic);
 		fclose(rom);
-		ret = -1;
+		ret = NOT_A_SUPER_IMAGE;
 		goto die;
 	}
 
@@ -246,7 +258,7 @@ int main(int argc, char *argv[])
 	{
 		printf("\nWrong LpMetadataHeader magic!\n");
 		fclose(rom);
-		ret = -1;
+		ret = WRONG_LP_METADATA_HEADER_MAGIC;
 		goto die;
 	}
 
@@ -254,7 +266,7 @@ int main(int argc, char *argv[])
 	{
 		printf("\nlp metadata major version %d is incompatible with tool lp metadata major version %d!\n", header.major_version, LP_METADATA_MAJOR_VERSION);
 		fclose(rom);
-		ret = -1;
+		ret = UNSUPPORTED_METADATA_VERSION;
 		goto die;
 	}
 
@@ -262,7 +274,7 @@ int main(int argc, char *argv[])
 	{
 		printf("\nlp metadata minor version %d is greater than tool lp metadata minor max version %d!\n", header.minor_version, LP_METADATA_MINOR_VERSION_MAX);
 		fclose(rom);
-		ret = -1;
+		ret = UNSUPPORTED_METADATA_VERSION;
 		goto die;
 	}
 
@@ -331,15 +343,37 @@ int main(int argc, char *argv[])
 		fseeko64(rom, (extent.target_data * 512), SEEK_SET);
 		fread_unus_res(temp, sizeof(temp), 1, rom);
 
+		// ext4
 		if (memcmp(temp+0x438, "\x53\xef", 2) == 0)
 		{
 			memcpy(&ext4_file_size, temp+0x404, sizeof(unsigned long long));
 			ext4_file_size *= 4096;
-			printf("      Partition: %s, Filetype: EXT4, EXT4_size: 0x%llx\n", partition.name, ext4_file_size);
+			printf("      Partition: %s | EXT4 | 0x%llx | ", partition.name, ext4_file_size);
 
 			memcpy(&s_feature_ro_compat, temp+0x464, sizeof(unsigned int));
+			memcpy(partit_uuid, temp+0x468, sizeof(partit_uuid));
 
-			printf("      Current s_feature_ro_compat: %s\n", (s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS) ? "shared_blocks and RO" : "without shared_blocks, RW allready");
+			for (j=0; j<sizeof(partit_uuid); ++j)
+			{
+				printf("%02X", partit_uuid[j] & 0xff);
+
+				switch(j)
+				{
+					case 3:
+					case 5:
+					case 7:
+					case 9:
+						printf("-");
+						break;
+
+					default:
+						break;
+				}
+
+			}
+			printf(" | ");
+
+			printf("0x%08X | ", s_feature_ro_compat);
 
 			if (strlen(partit) > 0 && strstr(partition.name, partit) != NULL)
 			{
@@ -348,25 +382,33 @@ int main(int argc, char *argv[])
 					case RW:
 						if (s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS)
 						{
-							printf("      unsharing blocks and making RW\n");
+							printf("unsharing blocks and making RW\n");
 							s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
 							fseeko64(rom, (extent.target_data * 512)+0x464, SEEK_SET);
 							fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, rom);
+						}
+						else
+						{
+							printf("allready RW and without shared_blocks\n");
 						}
 						break;
 
 					case RO:
 						if ((s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS) == 0)
 						{
-							printf("      adding feature shared_blocks and making RO\n");
+							printf("adding feature shared_blocks and making RO\n");
 							s_feature_ro_compat |= EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
 							fseeko64(rom, (extent.target_data * 512)+0x464, SEEK_SET);
 							fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, rom);
 						}
+						else
+						{
+							printf("allready RO and with shared_blocks\n");
+						}
 						break;
 
 					default:
-						printf("      you didn't type rw or ro, skipping.\n");
+						printf("you didn't type rw or ro, skipping.\n");
 						break;
 				}
 			}
@@ -374,27 +416,42 @@ int main(int argc, char *argv[])
 			{
 					if (argc == 4)
 					{
-						printf("      skipping.\n");
+						printf("skipping\n");
 					}
 					else
 					{
 						if (s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS)
 						{
-							printf("      unsharing blocks and making RW\n");
+							printf("unsharing blocks and making RW\n");
 							s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
 							fseeko64(rom, (extent.target_data * 512)+0x464, SEEK_SET);
 							fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, rom);
 						}
 						else
 						{
-							printf("      allready have unshared blocks and RW\n");
+							printf("allready RW and without shared_blocks\n");
 						}
 					}
 			}
 		}
 		else
 		{
-			printf("      Partition: %s, Filetype is not EXT4, skipping it.\n", partition.name);
+			if (memcmp(temp, "\x7f\x45\x4c\x46", 4) == 0)
+			{
+				printf("      Partition: %s | ELF | U | U | U | skipping\n", partition.name);
+			}
+			else if (memcmp(temp, "\xeb\x3c\x90", 3) == 0)
+			{
+				printf("      Partition: %s | VFAT | U | U | U | skipping\n", partition.name);
+			}
+			else if (memcmp(temp, "\x41\x4e\x44\x52", 4) == 0)
+			{
+				printf("      Partition: %s | IMG | U | U | U | skipping\n", partition.name);
+			}
+			else
+			{
+				printf("      Partition: %s | UNKNOWN | U | U | U | skipping\n", partition.name);
+			}
 		}
 	}
 
