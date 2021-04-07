@@ -1,25 +1,28 @@
 This *experimental* software allows you to extract or modify logical partitions from an super dynamic disk image.  
 
-### Usage
+### Superunpack usage
 
 - First you must extract superimage e.g. from an super.sin file (Sony firmare) with an tool - search xda for unpack any sony firmware - or use another tool - search xda for unsin
 - Run our superunpack tool from command line or if you are on Windows just drop superimage onto superunpack.exe
-- If you need to extract superimage with RW support add parameter 1 to the end of command line e.g. superunpack super.img 1
-- If you need not to unpack anything but want just to modify superimage partition to rw mode run superrepack from comand line e.g. superrepack super.img 
+- If you need to extract superimage with RW support add parameter 1 to the end of command line e.g. superunpack super.img 1, if you do that you need to resize2fs it and repair it with e2fsck -fy -E unshare_blocks
 
-### Build (native)
+### Superrepack usage
+
+- This is for Android only. This tool is designed to convert your ro partitions inside dynamic disk to the rw. For more info see bootom rorum link.
+
+### Build Superunpack (native)
 
 Download, build and install, assuming that `~/bin` is in `$PATH`:
 
     git clone https://github.com/munjeni/super_image_dumper.git ~/.local/share/superunpack
     make -C ~/.local/share/superunpack
     ln -s ~/.local/share/superunpack/superunpack ~/bin
-    ln -s ~/.local/share/superunpack/superrepack ~/bin
 
-### Build (cross, static)
+### Build Superunpack and Superrepack (cross, static)
 
-`make superunpack.[exe/x64/i386/arm32/arm64/i386-apple-darwin11/x86_64-apple-darwin11]`, exe referring to a Windows build, the rest being for Linux, Android and Darwin11.
-arm32_pie and arm_64_pie binaries if you need it you will need to build arm32 or arm64 binaries first. 
+`make superunpack.[exe/x64/i386/arm32/arm64/arm64_pie/i386-apple-darwin11/x86_64-apple-darwin11]`, exe referring to a Windows build, the rest being for Linux, Android and Darwin11, arm64_pie binaries
+
+`make superrepack.arm64_pie` Android pie binary.
 
 ### Discussion
 

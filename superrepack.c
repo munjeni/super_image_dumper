@@ -339,6 +339,11 @@ int main(int argc, char *argv[])
 		printf("    extent target_type = 0x%x\n", extent.target_type);
 		printf("    extent target_data = 0x%llx (dumping offset = 0x%llx)\n", extent.target_data, (extent.target_data * 512));
 		printf("    extent target_source = 0x%x\n", extent.target_source);
+		printf("----------\n    losetup --offset=%llu --sizelimit=%llu /dev/loop0 %s\n", extent.target_data * 512, extent.num_sectors * 512, argv[1]);
+		printf("    ../sbin/resize2fs /dev/loop0 %llu\n", (extent.num_sectors * 512) / 4096);
+		printf("    ../sbin/e2fsck -fy /dev/loop0\n");
+		printf("    ../sbin/e2fsck -fy -E unshare_blocks /dev/loop0\n");
+		printf("    losetup -d /dev/loop0\n");
 
 		fseeko64(rom, (extent.target_data * 512), SEEK_SET);
 		fread_unus_res(temp, sizeof(temp), 1, rom);
