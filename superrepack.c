@@ -140,6 +140,7 @@
 
 #include "e2fsck_bin.h"
 #include "resize2fs_bin.h"
+#include "busybox_bin.h"
 
 #define EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS	0x4000
 
@@ -233,7 +234,28 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 	char mode[] = "0755";
 	unsigned int m = strtol(mode, 0, 8);
 
-	execute_command("losetup -f", 1);
+	if ((bp = fopen("busybox", "wb")) == NULL)
+	{
+		printf("Error, unable to open busybox for write!\n");
+		return false;
+	}
+
+	if ((fwrite(busybox, 1, busybox_len, bp)) != e2fsck_len)
+	{
+		printf("Error, unable to write busybox!\n");
+		fclose(bp);
+		return false;
+	}
+
+	fclose(bp);
+
+	if (chmod("busybox", m) < 0)
+	{
+		printf("Error in chmod(busybox, %s) - %d (%s)\n", mode, errno, strerror(errno));
+		return false;
+	}
+
+	execute_command("./busybox losetup -f", 1);
 
 	if (command_response[0] == 'P')
 	{
@@ -255,15 +277,15 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 
 	fwrite(&cc, 1, 1, fp);
 	fprintf(fp, "/system/bin/sh\n\n");
-	fprintf(fp, "losetup --offset=%s --sizelimit=%s %s %s >>script.log\n", offset, limit, response, file);
+	fprintf(fp, "./busybox losetup --offset=%s --sizelimit=%s %s %s >>script.log\n", offset, limit, response, file);
 	fprintf(fp, "./resize2fs %s %s >>script.log\n", response, sectors);
 	fprintf(fp, "sync >>script.log\n");
 	fprintf(fp, "./e2fsck -fy %s >>script.log\n", response);
 	fprintf(fp, "sync >>script.log\n");
 	fprintf(fp, "./e2fsck -fy -E unshare_blocks %s >>script.log\n", response);
 	fprintf(fp, "sync >>script.log\n");
-	fprintf(fp, "losetup -d %s >>script.log\n", response);
-	fprintf(fp, "rm e2fsck resize2fs run.sh >>script.log\n");
+	fprintf(fp, "./busybox losetup -d %s >>script.log\n", response);
+	fprintf(fp, "rm busybox e2fsck resize2fs run.sh >>script.log\n");
 	fprintf(fp, "\nexit 0\n");
 
 	fclose(fp);
@@ -289,6 +311,12 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 
 	fclose(bp);
 
+	if (chmod("e2fsck", m) < 0)
+	{
+		printf("Error in chmod(e2fsck, %s) - %d (%s)\n", mode, errno, strerror(errno));
+		return false;
+	}
+
 	if ((bp = fopen("resize2fs", "wb")) == NULL)
 	{
 		printf("Error, unable to open resize2fs for write!\n");
@@ -303,12 +331,6 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 	}
 
 	fclose(bp);
-
-	if (chmod("e2fsck", m) < 0)
-	{
-		printf("Error in chmod(e2fsck, %s) - %d (%s)\n", mode, errno, strerror(errno));
-		return false;
-	}
 
 	if (chmod("resize2fs", m) < 0)
 	{
@@ -593,9 +615,9 @@ int main(int argc, char *argv[])
 					case RW:
 						if (s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS)
 						{
-							execute_command("losetup -f", 1);
+							execute_command("./busybox losetup -f", 1);
 
-							if (strstr(command_response, "loop") != NULL)
+							if (command_response[0] == '/' && command_response[1] == 'd' && command_response[2] == 'e' && command_response[3] == 'v' && strstr(command_response, "loop") != NULL)
 							{
 								printf("unsharing blocks and making RW\n");
 								s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
@@ -641,7 +663,7 @@ int main(int argc, char *argv[])
 					{
 						if (s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS)
 						{
-							execute_command("losetup -f", 1);
+							execute_command("./busybox losetup -f", 1);
 
 							if (strstr(command_response, "loop") != NULL)
 							{

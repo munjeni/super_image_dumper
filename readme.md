@@ -8,7 +8,7 @@ This *experimental* software allows you to extract or modify logical partitions 
 
 ### Superrepack usage
 
-- This is for Android only. This tool is designed to convert your ro partitions inside dynamic disk to the rw. For more info see bootom rorum link.
+- This is for Android only. This tool is designed to convert your ro partitions inside dynamic disk to the rw. For more info see bootom forum link.
 
 ### Build Superunpack (native)
 
