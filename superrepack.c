@@ -138,6 +138,9 @@
 
 #include "metadata_format.h"
 
+#include "e2fsck_bin.h"
+#include "resize2fs_bin.h"
+
 #define EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS	0x4000
 
 #define RW 1
@@ -150,6 +153,9 @@
 #define NOT_A_SUPER_IMAGE 3
 #define WRONG_LP_METADATA_HEADER_MAGIC 4
 #define UNSUPPORTED_METADATA_VERSION 5
+#define NOT_A_ROOTED_YET 6
+#define SELINUX_ENFORCED 7
+#define UNABLE_TO_DETERMINE_SELINUX 8
 
 void fread_unus_res(void *ptr, size_t size, size_t nmemb, FILE *stream) {
 	size_t in;
@@ -157,6 +163,176 @@ void fread_unus_res(void *ptr, size_t size, size_t nmemb, FILE *stream) {
 	if (in) {
 		/* satisfy warn unused result */
 	}
+}
+
+static char command_response[64];
+static char loop_offset[16];
+static char loop_limit[16];
+static char loop_sectors[16];
+
+void execute_command(char *command, bool search_and_replace)
+{
+
+	FILE *fp = NULL;
+	char ch;
+	unsigned char i = 0;
+
+	memset(command_response, 0, sizeof(command_response));
+
+	if ((fp = popen(command, "r")) == NULL)
+	{
+		command_response[0] = 'P';
+		command_response[1] = 0;
+		return;
+	}
+
+	while(1)
+	{
+		ch = fgetc(fp);
+
+		if(feof(fp))
+			break;
+
+		memcpy(command_response+i, &ch, 1);
+
+		i+=1;
+	}
+
+	pclose(fp);
+
+	command_response[i] = 0;
+
+	if (command_response[0] > 0)
+	{
+		if (search_and_replace)
+		{
+			for (i=0; i<strlen(command_response); ++i)
+			{
+				if (command_response[i] == 0x20 || command_response[i] == 0x0D || command_response[i] == 0x0A)
+				{
+					command_response[i] = 0;
+					break;
+				}
+			}
+		}
+	}
+	else
+	{
+		command_response[0] = 'N';
+		command_response[1] = 0;
+		return;
+	}
+}
+
+bool run_script(char *offset, char *limit, char *response, char *sectors, char *file)
+{
+	FILE *fp = NULL;
+	FILE *bp = NULL;
+	char cc = 0x23;
+	char script[] = "./run.sh";
+	char mode[] = "0755";
+	unsigned int m = strtol(mode, 0, 8);
+
+	execute_command("losetup -f", 1);
+
+	if (command_response[0] == 'P')
+	{
+		printf("Error popen!\n");
+		return false;
+	}
+
+	if (command_response[0] == 'N')
+	{
+		printf("Error, no free loop device!\n");
+		return false;
+	}
+
+	if ((fp = fopen(script, "wb")) == NULL)
+	{
+		printf("Unable to open run.sh for write!\n");
+		return false;
+	}
+
+	fwrite(&cc, 1, 1, fp);
+	fprintf(fp, "/system/bin/sh\n\n");
+	fprintf(fp, "losetup --offset=%s --sizelimit=%s %s %s >>script.log\n", offset, limit, response, file);
+	fprintf(fp, "./resize2fs %s %s >>script.log\n", response, sectors);
+	fprintf(fp, "sync >>script.log\n");
+	fprintf(fp, "./e2fsck -fy %s >>script.log\n", response);
+	fprintf(fp, "sync >>script.log\n");
+	fprintf(fp, "./e2fsck -fy -E unshare_blocks %s >>script.log\n", response);
+	fprintf(fp, "sync >>script.log\n");
+	fprintf(fp, "losetup -d %s >>script.log\n", response);
+	fprintf(fp, "rm e2fsck resize2fs run.sh >>script.log\n");
+	fprintf(fp, "\nexit 0\n");
+
+	fclose(fp);
+
+	if (chmod(script, m) < 0)
+	{
+		printf("Error in chmod(%s, %s) - %d (%s)\n", script, mode, errno, strerror(errno));
+		return false;
+	}
+
+	if ((bp = fopen("e2fsck", "wb")) == NULL)
+	{
+		printf("Error, unable to open e2fsck for write!\n");
+		return false;
+	}
+
+	if ((fwrite(e2fsck, 1, e2fsck_len, bp)) != e2fsck_len)
+	{
+		printf("Error, unable to write e2fsck!\n");
+		fclose(bp);
+		return false;
+	}
+
+	fclose(bp);
+
+	if ((bp = fopen("resize2fs", "wb")) == NULL)
+	{
+		printf("Error, unable to open resize2fs for write!\n");
+		return false;
+	}
+
+	if ((fwrite(resize2fs, 1, resize2fs_len, bp)) != resize2fs_len)
+	{
+		printf("Error, unable to write resize2fs!\n");
+		fclose(bp);
+		return false;
+	}
+
+	fclose(bp);
+
+	if (chmod("e2fsck", m) < 0)
+	{
+		printf("Error in chmod(e2fsck, %s) - %d (%s)\n", mode, errno, strerror(errno));
+		return false;
+	}
+
+	if (chmod("resize2fs", m) < 0)
+	{
+		printf("Error in chmod(resize2fs, %s) - %d (%s)\n", mode, errno, strerror(errno));
+		return false;
+	}
+
+	execute_command(script, 0);
+
+	if (command_response[0] == 'P')
+	{
+		printf("Error popen script!\n");
+		return false;
+	}
+
+	if (command_response[0] == 'N')
+	{
+		printf("Error, null response!\n");
+		return false;
+	}
+
+	execute_command("sync", 0);
+
+	return true;
 }
 
 int main(int argc, char *argv[])
@@ -193,6 +369,37 @@ int main(int argc, char *argv[])
 		printf("%s /dev/block/by-name/super system_a ro\n", argv[0]);
 		printf("\n");
 		ret = NO_ARGUMENTS;
+		goto die;
+	}
+
+	if ((unsigned int)getuid() != 0)
+	{
+		printf("Error, you must root your device first!\n");
+		ret = NOT_A_ROOTED_YET;
+		goto die;
+	}
+
+	execute_command("getenforce", 1);
+
+	if (command_response[0] == 'E' && command_response[1] == 'n')
+	{
+		printf("Error, your device is selinux enforced!\n");
+		printf("Put selinux in permisive mode first by command: setenforce 0\n");
+		ret = SELINUX_ENFORCED;
+		goto die;
+	}
+
+	if (command_response[0] == 'P')
+	{
+		printf("Error, getenforce tool is missing, unable to determine selinux status!\n");
+		ret = UNABLE_TO_DETERMINE_SELINUX;
+		goto die;
+	}
+
+	if (command_response[0] == 'N')
+	{
+		printf("Error, getenforce null reply, unable to determine selinux status!\n");
+		ret = UNABLE_TO_DETERMINE_SELINUX;
 		goto die;
 	}
 
@@ -339,11 +546,10 @@ int main(int argc, char *argv[])
 		printf("    extent target_type = 0x%x\n", extent.target_type);
 		printf("    extent target_data = 0x%llx (dumping offset = 0x%llx)\n", extent.target_data, (extent.target_data * 512));
 		printf("    extent target_source = 0x%x\n", extent.target_source);
-		printf("----------\n    losetup --offset=%llu --sizelimit=%llu /dev/loop0 %s\n", extent.target_data * 512, extent.num_sectors * 512, argv[1]);
-		printf("    ../sbin/resize2fs /dev/loop0 %llu\n", (extent.num_sectors * 512) / 4096);
-		printf("    ../sbin/e2fsck -fy /dev/loop0\n");
-		printf("    ../sbin/e2fsck -fy -E unshare_blocks /dev/loop0\n");
-		printf("    losetup -d /dev/loop0\n");
+
+		snprintf(loop_offset, sizeof(loop_offset), "%llu", extent.target_data * 512);
+		snprintf(loop_limit, sizeof(loop_limit), "%llu", extent.num_sectors * 512);
+		snprintf(loop_sectors, sizeof(loop_sectors), "%llu", (extent.num_sectors * 512) / 4096);
 
 		fseeko64(rom, (extent.target_data * 512), SEEK_SET);
 		fread_unus_res(temp, sizeof(temp), 1, rom);
@@ -387,10 +593,21 @@ int main(int argc, char *argv[])
 					case RW:
 						if (s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS)
 						{
-							printf("unsharing blocks and making RW\n");
-							s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
-							fseeko64(rom, (extent.target_data * 512)+0x464, SEEK_SET);
-							fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, rom);
+							execute_command("losetup -f", 1);
+
+							if (strstr(command_response, "loop") != NULL)
+							{
+								printf("unsharing blocks and making RW\n");
+								s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
+								fseeko64(rom, (extent.target_data * 512)+0x464, SEEK_SET);
+								fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, rom);
+
+								run_script(loop_offset, loop_limit, command_response, loop_sectors, argv[1]);
+							}
+							else
+							{
+								printf("Error, no free loop device!\n");
+							}
 						}
 						else
 						{
@@ -401,10 +618,7 @@ int main(int argc, char *argv[])
 					case RO:
 						if ((s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS) == 0)
 						{
-							printf("adding feature shared_blocks and making RO\n");
-							s_feature_ro_compat |= EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
-							fseeko64(rom, (extent.target_data * 512)+0x464, SEEK_SET);
-							fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, rom);
+							printf("We can't undo feature shared_blocks and make RO!\n");
 						}
 						else
 						{
@@ -431,6 +645,12 @@ int main(int argc, char *argv[])
 							s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
 							fseeko64(rom, (extent.target_data * 512)+0x464, SEEK_SET);
 							fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, rom);
+
+							printf("----------\n    losetup --offset=%s --sizelimit=%s %s %s\n", loop_offset, loop_limit, command_response, argv[1]);
+							printf("    ../sbin/resize2fs %s %s\n", command_response, loop_sectors);
+							printf("    ../sbin/e2fsck -fy %s\n", command_response);
+							printf("    ../sbin/e2fsck -fy -E unshare_blocks %s\n", command_response);
+							printf("    losetup -d %s\n", command_response);
 						}
 						else
 						{
