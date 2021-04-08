@@ -665,7 +665,7 @@ int main(int argc, char *argv[])
 						{
 							execute_command("./busybox losetup -f", 1);
 
-							if (strstr(command_response, "loop") != NULL)
+							if (command_response[0] == '/' && command_response[1] == 'd' && command_response[2] == 'e' && command_response[3] == 'v' && strstr(command_response, "loop") != NULL)
 							{
 								printf("unsharing blocks and making RW\n");
 								s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
