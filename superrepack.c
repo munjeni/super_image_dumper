@@ -240,7 +240,7 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 		return false;
 	}
 
-	if ((fwrite(busybox, 1, busybox_len, bp)) != e2fsck_len)
+	if ((fwrite(busybox, 1, busybox_len, bp)) != busybox_len)
 	{
 		printf("Error, unable to write busybox!\n");
 		fclose(bp);
