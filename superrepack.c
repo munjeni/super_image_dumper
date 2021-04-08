@@ -411,7 +411,7 @@ int main(int argc, char *argv[])
 		goto die;
 	}
 
-	if (command_response[0] == 'P')
+	if (command_response[0] == 'P' && command_response[1] != 'e')
 	{
 		printf("Error, getenforce tool is missing, unable to determine selinux status!\n");
 		ret = UNABLE_TO_DETERMINE_SELINUX;
