@@ -22,6 +22,7 @@ DESTDIR=
 LIBS=
 
 NDK_BUILD := NDK_PROJECT_PATH=. /root/ndk/android-ndk-r22b/ndk-build NDK_APPLICATION_MK=./Application.mk
+NDK2_BUILD := NDK_PROJECT_PATH=. /root/ndk/android-ndk-r22b/ndk-build NDK_APPLICATION_MK=./Application2.mk
 
 VERSION := $(shell sed 's/^.*VERSION //' version.h)
 
@@ -61,7 +62,6 @@ superunpack.arm64: superunpack.c version.h
 
 superunpack.arm64_pie:
 	@echo "Building Android pie binary"
-	@test -d lptools.cc && echo "" || wget https://raw.githubusercontent.com/phhusson/device_phh_treble/android-11.0/cmds/lptools.cc -O lptools.cc
 	${NDK_BUILD}
 	@cp -fr libs/arm64-v8a/superunpack.arm64_pie ./superunpack.arm64_pie
 
@@ -82,7 +82,7 @@ superrepack.arm64_pie:
 	@test -d vold && echo "" || git clone https://android.googlesource.com/platform/system/vold -b android-11.0.0_r35
 	@test -d jsoncpp && echo "" || git clone https://android.googlesource.com/platform/external/jsoncpp -b android-11.0.0_r35
 	@test -d lptools.cc && echo "" || wget https://raw.githubusercontent.com/phhusson/device_phh_treble/android-11.0/cmds/lptools.cc -O lptools.cc
-	${NDK_BUILD}
+	${NDK2_BUILD}
 	@cp -fr libs/arm64-v8a/resize2fs ./resize2fs
 	@cp -fr libs/arm64-v8a/e2fsck ./e2fsck
 	@cp -fr libs/arm64-v8a/simg2img ./simg2img

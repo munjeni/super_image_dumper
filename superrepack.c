@@ -641,16 +641,21 @@ int main(int argc, char *argv[])
 					{
 						if (s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS)
 						{
-							printf("unsharing blocks and making RW\n");
-							s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
-							fseeko64(rom, (extent.target_data * 512)+0x464, SEEK_SET);
-							fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, rom);
+							execute_command("losetup -f", 1);
 
-							printf("----------\n    losetup --offset=%s --sizelimit=%s %s %s\n", loop_offset, loop_limit, command_response, argv[1]);
-							printf("    ../sbin/resize2fs %s %s\n", command_response, loop_sectors);
-							printf("    ../sbin/e2fsck -fy %s\n", command_response);
-							printf("    ../sbin/e2fsck -fy -E unshare_blocks %s\n", command_response);
-							printf("    losetup -d %s\n", command_response);
+							if (strstr(command_response, "loop") != NULL)
+							{
+								printf("unsharing blocks and making RW\n");
+								s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
+								fseeko64(rom, (extent.target_data * 512)+0x464, SEEK_SET);
+								fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, rom);
+
+								run_script(loop_offset, loop_limit, command_response, loop_sectors, argv[1]);
+							}
+							else
+							{
+								printf("Error, no free loop device!\n");
+							}
 						}
 						else
 						{
