@@ -230,11 +230,11 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 	FILE *fp = NULL;
 	FILE *bp = NULL;
 	char cc = 0x23;
-	char script[] = "./run.sh";
+	char script[] = "/data/local/tmp/run.sh";
 	char mode[] = "0755";
 	unsigned int m = strtol(mode, 0, 8);
 
-	if ((bp = fopen("busybox", "wb")) == NULL)
+	if ((bp = fopen("/data/local/tmp/busybox", "wb")) == NULL)
 	{
 		printf("Error, unable to open busybox for write!\n");
 		return false;
@@ -249,13 +249,13 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 
 	fclose(bp);
 
-	if (chmod("busybox", m) < 0)
+	if (chmod("/data/local/tmp/busybox", m) < 0)
 	{
 		printf("Error in chmod(busybox, %s) - %d (%s)\n", mode, errno, strerror(errno));
 		return false;
 	}
 
-	execute_command("./busybox losetup -f", 1);
+	execute_command("/data/local/tmp/busybox losetup -f", 1);
 
 	if (command_response[0] == 'P')
 	{
@@ -265,7 +265,7 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 
 	if (command_response[0] == 'N')
 	{
-		printf("Error, no free loop device!\n");
+		printf("Error, null reply!\n");
 		return false;
 	}
 
@@ -277,15 +277,15 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 
 	fwrite(&cc, 1, 1, fp);
 	fprintf(fp, "/system/bin/sh\n\n");
-	fprintf(fp, "./busybox losetup --offset=%s --sizelimit=%s %s %s >>script.log\n", offset, limit, response, file);
-	fprintf(fp, "./resize2fs %s %s >>script.log\n", response, sectors);
-	fprintf(fp, "sync >>script.log\n");
-	fprintf(fp, "./e2fsck -fy %s >>script.log\n", response);
-	fprintf(fp, "sync >>script.log\n");
-	fprintf(fp, "./e2fsck -fy -E unshare_blocks %s >>script.log\n", response);
-	fprintf(fp, "sync >>script.log\n");
-	fprintf(fp, "./busybox losetup -d %s >>script.log\n", response);
-	fprintf(fp, "rm busybox e2fsck resize2fs run.sh >>script.log\n");
+	fprintf(fp, "/data/local/tmp/busybox losetup --offset=%s --sizelimit=%s %s %s >>/data/local/tmp/script.log\n", offset, limit, response, file);
+	fprintf(fp, "/data/local/tmp/resize2fs %s %s >>/data/local/tmp/script.log\n", response, sectors);
+	fprintf(fp, "sync >>/data/local/tmp/script.log\n");
+	fprintf(fp, "/data/local/tmp/e2fsck -fy %s >>/data/local/tmp/script.log\n", response);
+	fprintf(fp, "sync >>/data/local/tmp/script.log\n");
+	fprintf(fp, "/data/local/tmp/e2fsck -fy -E unshare_blocks %s >>/data/local/tmp/script.log\n", response);
+	fprintf(fp, "sync >>/data/local/tmp/script.log\n");
+	fprintf(fp, "/data/local/tmp/busybox losetup -d %s >>/data/local/tmp/script.log\n", response);
+	fprintf(fp, "rm /data/local/tmp/busybox /data/local/tmp/e2fsck /data/local/tmp/resize2fs /data/local/tmp/run.sh >>/data/local/tmp/script.log\n");
 	fprintf(fp, "\nexit 0\n");
 
 	fclose(fp);
@@ -296,7 +296,7 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 		return false;
 	}
 
-	if ((bp = fopen("e2fsck", "wb")) == NULL)
+	if ((bp = fopen("/data/local/tmp/e2fsck", "wb")) == NULL)
 	{
 		printf("Error, unable to open e2fsck for write!\n");
 		return false;
@@ -311,13 +311,13 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 
 	fclose(bp);
 
-	if (chmod("e2fsck", m) < 0)
+	if (chmod("/data/local/tmp/e2fsck", m) < 0)
 	{
 		printf("Error in chmod(e2fsck, %s) - %d (%s)\n", mode, errno, strerror(errno));
 		return false;
 	}
 
-	if ((bp = fopen("resize2fs", "wb")) == NULL)
+	if ((bp = fopen("/data/local/tmp/resize2fs", "wb")) == NULL)
 	{
 		printf("Error, unable to open resize2fs for write!\n");
 		return false;
@@ -332,7 +332,7 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 
 	fclose(bp);
 
-	if (chmod("resize2fs", m) < 0)
+	if (chmod("/data/local/tmp/resize2fs", m) < 0)
 	{
 		printf("Error in chmod(resize2fs, %s) - %d (%s)\n", mode, errno, strerror(errno));
 		return false;
@@ -348,7 +348,7 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 
 	if (command_response[0] == 'N')
 	{
-		printf("Error, null response!\n");
+		printf("Error, script null response!\n");
 		return false;
 	}
 
@@ -615,7 +615,7 @@ int main(int argc, char *argv[])
 					case RW:
 						if (s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS)
 						{
-							execute_command("./busybox losetup -f", 1);
+							execute_command("/data/local/tmp/busybox losetup -f", 1);
 
 							if (command_response[0] == '/' && command_response[1] == 'd' && command_response[2] == 'e' && command_response[3] == 'v' && strstr(command_response, "loop") != NULL)
 							{
@@ -663,7 +663,7 @@ int main(int argc, char *argv[])
 					{
 						if (s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS)
 						{
-							execute_command("./busybox losetup -f", 1);
+							execute_command("/data/local/tmp/busybox losetup -f", 1);
 
 							if (command_response[0] == '/' && command_response[1] == 'd' && command_response[2] == 'e' && command_response[3] == 'v' && strstr(command_response, "loop") != NULL)
 							{
