@@ -157,6 +157,7 @@
 #define NOT_A_ROOTED_YET 6
 #define SELINUX_ENFORCED 7
 #define UNABLE_TO_DETERMINE_SELINUX 8
+#define MISSING_TOOLS 9
 
 void fread_unus_res(void *ptr, size_t size, size_t nmemb, FILE *stream) {
 	size_t in;
@@ -228,32 +229,10 @@ void execute_command(char *command, bool search_and_replace)
 bool run_script(char *offset, char *limit, char *response, char *sectors, char *file)
 {
 	FILE *fp = NULL;
-	FILE *bp = NULL;
 	char cc = 0x23;
 	char script[] = "/data/local/tmp/run.sh";
 	char mode[] = "0755";
 	unsigned int m = strtol(mode, 0, 8);
-
-	if ((bp = fopen("/data/local/tmp/busybox", "wb")) == NULL)
-	{
-		printf("Error, unable to open busybox for write!\n");
-		return false;
-	}
-
-	if ((fwrite(busybox, 1, busybox_len, bp)) != busybox_len)
-	{
-		printf("Error, unable to write busybox!\n");
-		fclose(bp);
-		return false;
-	}
-
-	fclose(bp);
-
-	if (chmod("/data/local/tmp/busybox", m) < 0)
-	{
-		printf("Error in chmod(busybox, %s) - %d (%s)\n", mode, errno, strerror(errno));
-		return false;
-	}
 
 	execute_command("/data/local/tmp/busybox losetup -f", 1);
 
@@ -285,7 +264,6 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 	fprintf(fp, "/data/local/tmp/e2fsck -fy -E unshare_blocks %s >>/data/local/tmp/script.log\n", response);
 	fprintf(fp, "sync >>/data/local/tmp/script.log\n");
 	fprintf(fp, "/data/local/tmp/busybox losetup -d %s >>/data/local/tmp/script.log\n", response);
-	fprintf(fp, "rm /data/local/tmp/busybox /data/local/tmp/e2fsck /data/local/tmp/resize2fs /data/local/tmp/run.sh >>/data/local/tmp/script.log\n");
 	fprintf(fp, "\nexit 0\n");
 
 	fclose(fp);
@@ -293,48 +271,6 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 	if (chmod(script, m) < 0)
 	{
 		printf("Error in chmod(%s, %s) - %d (%s)\n", script, mode, errno, strerror(errno));
-		return false;
-	}
-
-	if ((bp = fopen("/data/local/tmp/e2fsck", "wb")) == NULL)
-	{
-		printf("Error, unable to open e2fsck for write!\n");
-		return false;
-	}
-
-	if ((fwrite(e2fsck, 1, e2fsck_len, bp)) != e2fsck_len)
-	{
-		printf("Error, unable to write e2fsck!\n");
-		fclose(bp);
-		return false;
-	}
-
-	fclose(bp);
-
-	if (chmod("/data/local/tmp/e2fsck", m) < 0)
-	{
-		printf("Error in chmod(e2fsck, %s) - %d (%s)\n", mode, errno, strerror(errno));
-		return false;
-	}
-
-	if ((bp = fopen("/data/local/tmp/resize2fs", "wb")) == NULL)
-	{
-		printf("Error, unable to open resize2fs for write!\n");
-		return false;
-	}
-
-	if ((fwrite(resize2fs, 1, resize2fs_len, bp)) != resize2fs_len)
-	{
-		printf("Error, unable to write resize2fs!\n");
-		fclose(bp);
-		return false;
-	}
-
-	fclose(bp);
-
-	if (chmod("/data/local/tmp/resize2fs", m) < 0)
-	{
-		printf("Error in chmod(resize2fs, %s) - %d (%s)\n", mode, errno, strerror(errno));
 		return false;
 	}
 
@@ -366,6 +302,10 @@ int main(int argc, char *argv[])
 	unsigned char j=0;
 
 	FILE *rom = NULL;
+	FILE *bp = NULL;
+
+	char mode[] = "0755";
+	unsigned int m = strtol(mode, 0, 8);
 
 	int ret = RETURN_OK;
 	char temp[0x500];
@@ -445,6 +385,78 @@ int main(int argc, char *argv[])
 	else
 	{
 		printf("Removing shared_blocks and making RW on all partitions!\n");
+	}
+
+	if ((bp = fopen("/data/local/tmp/busybox", "wb")) == NULL)
+	{
+		printf("Error, unable to open busybox for write!\n");
+		ret = MISSING_TOOLS;
+		goto die;
+	}
+
+	if ((fwrite(busybox, 1, busybox_len, bp)) != busybox_len)
+	{
+		printf("Error, unable to write busybox!\n");
+		fclose(bp);
+		ret = MISSING_TOOLS;
+		goto die;
+	}
+
+	fclose(bp);
+
+	if (chmod("/data/local/tmp/busybox", m) < 0)
+	{
+		printf("Error in chmod(busybox, %s) - %d (%s)\n", mode, errno, strerror(errno));
+		ret = MISSING_TOOLS;
+		goto die;
+	}
+
+	if ((bp = fopen("/data/local/tmp/e2fsck", "wb")) == NULL)
+	{
+		printf("Error, unable to open e2fsck for write!\n");
+		ret = MISSING_TOOLS;
+		goto die;
+	}
+
+	if ((fwrite(e2fsck, 1, e2fsck_len, bp)) != e2fsck_len)
+	{
+		printf("Error, unable to write e2fsck!\n");
+		fclose(bp);
+		ret = MISSING_TOOLS;
+		goto die;
+	}
+
+	fclose(bp);
+
+	if (chmod("/data/local/tmp/e2fsck", m) < 0)
+	{
+		printf("Error in chmod(e2fsck, %s) - %d (%s)\n", mode, errno, strerror(errno));
+		ret = MISSING_TOOLS;
+		goto die;
+	}
+
+	if ((bp = fopen("/data/local/tmp/resize2fs", "wb")) == NULL)
+	{
+		printf("Error, unable to open resize2fs for write!\n");
+		ret = MISSING_TOOLS;
+		goto die;
+	}
+
+	if ((fwrite(resize2fs, 1, resize2fs_len, bp)) != resize2fs_len)
+	{
+		printf("Error, unable to write resize2fs!\n");
+		fclose(bp);
+		ret = MISSING_TOOLS;
+		goto die;
+	}
+
+	fclose(bp);
+
+	if (chmod("/data/local/tmp/resize2fs", m) < 0)
+	{
+		printf("Error in chmod(resize2fs, %s) - %d (%s)\n", mode, errno, strerror(errno));
+		ret = MISSING_TOOLS;
+		goto die;
 	}
 
 	rom = fopen64(argv[1], "rb+");
