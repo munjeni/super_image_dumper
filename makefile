@@ -33,7 +33,7 @@ CROSS_CFLAGS=${CFLAGS}
 default: superunpack
 
 .PHONY: cross
-cross: superunpack.exe superunpack.x64 superunpack.i386 superunpack.arm32 superunpack.arm64 superunpack.arm64_pie superrepack.arm64_pie superunpack.i386-apple-darwin11 superunpack.x86_64-apple-darwin11
+cross: superunpack.exe superunpack.x64 superunpack.i386 superunpack.arm32 superunpack.arm64 superunpack.arm64_pie superunpack.i386-apple-darwin11 superunpack.x86_64-apple-darwin11
 
 superunpack: superunpack.c version.h
 	${CC} ${CFLAGS} superunpack.c -o superunpack
@@ -81,7 +81,9 @@ superrepack.arm64_pie:
 	@test -d gsid && echo "" || git clone https://android.googlesource.com/platform/system/gsid -b android-11.0.0_r35
 	@test -d vold && echo "" || git clone https://android.googlesource.com/platform/system/vold -b android-11.0.0_r35
 	@test -d jsoncpp && echo "" || git clone https://android.googlesource.com/platform/external/jsoncpp -b android-11.0.0_r35
-	@test -d lptools.cc && echo "" || wget https://raw.githubusercontent.com/phhusson/device_phh_treble/android-11.0/cmds/lptools.cc -O lptools.cc
+	@test -f lptools.cc && echo "" || wget https://raw.githubusercontent.com/phhusson/device_phh_treble/android-11.0/cmds/lptools.cc -O lptools.cc
+	@test -d util-linux-2.27 && echo "" || `wget http://ftp.iij.ad.jp/pub/linux/kernel/linux/utils/util-linux/v2.27/util-linux-2.27.tar.gz && tar xzf util-linux-2.27.tar.gz && rm -rf util-linux-2.27.tar.gz`
+	@cp -fr prebuilts/util_linux/config.h util-linux-2.27/
 	${NDK2_BUILD}
 	@cp -fr libs/arm64-v8a/resize2fs ./resize2fs
 	@cp -fr libs/arm64-v8a/e2fsck ./e2fsck
@@ -115,4 +117,4 @@ clean:
 .PHONY: distclean
 distclean:
 	rm -rf *.gz *.o *.rc *.res libs obj superunpack.exe superunpack.x64 superunpack.i386 superunpack.arm32 superunpack.arm64 superunpack.arm64_pie superrepack.arm64_pie superunpack.i386-apple-darwin11 superunpack.x86_64-apple-darwin11 superunpack
-	rm -rf zlib fmtlib core extras android_external_e2fsprogs squashfs-tools fec avb boringssl pcre selinux gsid vold jsoncpp resize2fs e2fsck simg2img img2simg lptools lptools.cc
+	rm -rf zlib fmtlib core extras android_external_e2fsprogs squashfs-tools fec avb boringssl pcre selinux gsid vold jsoncpp resize2fs e2fsck simg2img img2simg lptools lptools.cc util-linux-2.27

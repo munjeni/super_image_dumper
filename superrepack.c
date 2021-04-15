@@ -140,7 +140,7 @@
 
 #include "e2fsck_bin.h"
 #include "resize2fs_bin.h"
-#include "busybox_bin.h"
+#include "losetup_bin.h"
 
 #define EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS	0x4000
 
@@ -234,7 +234,7 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 	char mode[] = "0755";
 	unsigned int m = strtol(mode, 0, 8);
 
-	execute_command("/data/local/tmp/busybox losetup -f", 1);
+	execute_command("/data/local/tmp/losetup -f", 1);
 
 	if (command_response[0] == 'P')
 	{
@@ -256,14 +256,14 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 
 	fwrite(&cc, 1, 1, fp);
 	fprintf(fp, "/system/bin/sh\n\n");
-	fprintf(fp, "/data/local/tmp/busybox losetup --offset=%s --sizelimit=%s %s %s >>/data/local/tmp/script.log\n", offset, limit, response, file);
+	fprintf(fp, "/data/local/tmp/losetup --offset=%s --sizelimit=%s %s %s >>/data/local/tmp/script.log\n", offset, limit, response, file);
 	fprintf(fp, "/data/local/tmp/resize2fs %s %s >>/data/local/tmp/script.log\n", response, sectors);
 	fprintf(fp, "sync >>/data/local/tmp/script.log\n");
 	fprintf(fp, "/data/local/tmp/e2fsck -fy %s >>/data/local/tmp/script.log\n", response);
 	fprintf(fp, "sync >>/data/local/tmp/script.log\n");
 	fprintf(fp, "/data/local/tmp/e2fsck -fy -E unshare_blocks %s >>/data/local/tmp/script.log\n", response);
 	fprintf(fp, "sync >>/data/local/tmp/script.log\n");
-	fprintf(fp, "/data/local/tmp/busybox losetup -d %s >>/data/local/tmp/script.log\n", response);
+	fprintf(fp, "/data/local/tmp/losetup -d %s >>/data/local/tmp/script.log\n", response);
 	fprintf(fp, "\nexit 0\n");
 
 	fclose(fp);
@@ -387,16 +387,16 @@ int main(int argc, char *argv[])
 		printf("Removing shared_blocks and making RW on all partitions!\n");
 	}
 
-	if ((bp = fopen("/data/local/tmp/busybox", "wb")) == NULL)
+	if ((bp = fopen("/data/local/tmp/losetup", "wb")) == NULL)
 	{
-		printf("Error, unable to open busybox for write!\n");
+		printf("Error, unable to open losetup for write!\n");
 		ret = MISSING_TOOLS;
 		goto die;
 	}
 
-	if ((fwrite(busybox, 1, busybox_len, bp)) != busybox_len)
+	if ((fwrite(losetup, 1, losetup_len, bp)) != losetup_len)
 	{
-		printf("Error, unable to write busybox!\n");
+		printf("Error, unable to write losetup!\n");
 		fclose(bp);
 		ret = MISSING_TOOLS;
 		goto die;
@@ -404,9 +404,9 @@ int main(int argc, char *argv[])
 
 	fclose(bp);
 
-	if (chmod("/data/local/tmp/busybox", m) < 0)
+	if (chmod("/data/local/tmp/losetup", m) < 0)
 	{
-		printf("Error in chmod(busybox, %s) - %d (%s)\n", mode, errno, strerror(errno));
+		printf("Error in chmod(losetup, %s) - %d (%s)\n", mode, errno, strerror(errno));
 		ret = MISSING_TOOLS;
 		goto die;
 	}
@@ -627,7 +627,7 @@ int main(int argc, char *argv[])
 					case RW:
 						if (s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS)
 						{
-							execute_command("/data/local/tmp/busybox losetup -f", 1);
+							execute_command("/data/local/tmp/losetup -f", 1);
 
 							if (command_response[0] == '/' && command_response[1] == 'd' && command_response[2] == 'e' && command_response[3] == 'v' && strstr(command_response, "loop") != NULL)
 							{
@@ -675,7 +675,7 @@ int main(int argc, char *argv[])
 					{
 						if (s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS)
 						{
-							execute_command("/data/local/tmp/busybox losetup -f", 1);
+							execute_command("/data/local/tmp/losetup -f", 1);
 
 							if (command_response[0] == '/' && command_response[1] == 'd' && command_response[2] == 'e' && command_response[3] == 'v' && strstr(command_response, "loop") != NULL)
 							{

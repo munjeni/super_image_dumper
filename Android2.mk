@@ -1109,6 +1109,66 @@ LOCAL_SHARED_LIBRARIES := libcrypto
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
+LOCAL_MODULE := losetup
+LOCAL_SRC_FILES := util-linux-2.27/lib/at.c \
+                   util-linux-2.27/lib/blkdev.c \
+                   util-linux-2.27/lib/canonicalize.c \
+                   util-linux-2.27/lib/crc32.c \
+                   util-linux-2.27/lib/crc64.c \
+                   util-linux-2.27/lib/env.c \
+                   util-linux-2.27/lib/fileutils.c \
+                   util-linux-2.27/lib/ismounted.c \
+                   util-linux-2.27/lib/color-names.c \
+                   util-linux-2.27/lib/mangle.c \
+                   util-linux-2.27/lib/match.c \
+                   util-linux-2.27/lib/mbsalign.c \
+                   util-linux-2.27/lib/md5.c \
+                   util-linux-2.27/lib/pager.c \
+                   util-linux-2.27/lib/path.c \
+                   util-linux-2.27/lib/procutils.c \
+                   util-linux-2.27/lib/randutils.c \
+                   util-linux-2.27/lib/setproctitle.c \
+                   util-linux-2.27/lib/strutils.c \
+                   util-linux-2.27/lib/sysfs.c \
+                   util-linux-2.27/lib/timeutils.c \
+                   util-linux-2.27/lib/ttyutils.c \
+                   util-linux-2.27/lib/exec_shell.c \
+                   util-linux-2.27/lib/strv.c \
+                   util-linux-2.27/lib/linux_version.c \
+                   util-linux-2.27/lib/loopdev.c \
+                   util-linux-2.27/lib/colors.c \
+                   util-linux-2.27/libsmartcols/src/iter.c \
+                   util-linux-2.27/libsmartcols/src/symbols.c \
+                   util-linux-2.27/libsmartcols/src/cell.c \
+                   util-linux-2.27/libsmartcols/src/column.c \
+                   util-linux-2.27/libsmartcols/src/line.c \
+                   util-linux-2.27/libsmartcols/src/table.c \
+                   util-linux-2.27/libsmartcols/src/table_print.c \
+                   util-linux-2.27/libsmartcols/src/version.c \
+                   util-linux-2.27/libsmartcols/src/init.c \
+                   util-linux-2.27/sys-utils/losetup.c
+
+LOCAL_CFLAGS += -include /root/ndk/android-ndk-r22b/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/sys/sysmacros.h \
+                -Iutil-linux-2.27 \
+                -Iutil-linux-2.27/include \
+                -Iutil-linux-2.27/libsmartcols/src \
+                -D__USE_FILE_OFFSET64=1 \
+                -D__USE_LARGEFILE64=1 \
+                -D_LARGEFILE64_SOURCE=1 \
+                -D_FILE_OFFSET_BITS=64 \
+                -D_FILE_OFFSET_BIT=64 \
+                -D_LARGEFILE_SOURCE=1 \
+                -DHAVE_NANOSLEEP=1 \
+                -D_PATH_TMP='"/data/local/tmp"' \
+                -DHAVE_SYSCONF=0 \
+                -DHAVE_ERRX=0 \
+                -DHAVE_SYS_TTYDEFAULTS_H=1 \
+                -DPACKAGE_STRING='"util-linux 2.27"' \
+                -DHAVE_FSYNC=0
+
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
 LOCAL_MODULE := superrepack.arm64_pie
 LOCAL_SRC_FILES := superrepack.c
 LOCAL_CFLAGS += -Iinclude
