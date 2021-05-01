@@ -311,7 +311,6 @@ int main(int argc, char *argv[])
 	char temp[0x500];
 	char partit[64];
 	char partit_uuid[16];
-	unsigned char partition_flag = 0;
 	unsigned long long ext4_file_size;
 	unsigned int s_feature_ro_compat = 0;
 
@@ -322,13 +321,11 @@ int main(int argc, char *argv[])
 	if (argc < 2)
 	{
 		printf("USAGE: (With no arguments all partitions going to be RW and shared_blocks removed!)\n");
-		printf("%s [image or block device] [search by string] [rw or ro]\n", argv[0]);
+		printf("%s [image or block device] [search by string]\n", argv[0]);
 		printf("%s super.img\n", argv[0]);
 		printf("%s /dev/block/by-name/super\n", argv[0]);
-		printf("%s super.img system_a rw\n", argv[0]);
-		printf("%s /dev/block/by-name/super system_a rw\n", argv[0]);
-		printf("%s super.img system_a ro\n", argv[0]);
-		printf("%s /dev/block/by-name/super system_a ro\n", argv[0]);
+		printf("%s super.img system_a\n", argv[0]);
+		printf("%s /dev/block/by-name/super system_a\n", argv[0]);
 		printf("\n");
 		ret = NO_ARGUMENTS;
 		goto die;
@@ -367,20 +364,10 @@ int main(int argc, char *argv[])
 
 	memset(partit, 0, sizeof(partit));
 
-	if (argc == 4)
+	if (argc == 3)
 	{
 		strncpy(partit, argv[2], sizeof(partit));
-
-		if (memcmp(argv[3], "rw", 2) == 0)
-		{
-			partition_flag = RW;
-		}
-		else if(memcmp(argv[3], "ro", 2) == 0)
-		{
-			partition_flag = RO;
-		}
-
-		printf("Searching for partitions contain string: %s and making it: %s\n", partit, argv[3]);
+		printf("Searching for partitions contain string: %s and making it RW\n", partit);
 	}
 	else
 	{
@@ -622,80 +609,46 @@ int main(int argc, char *argv[])
 
 			if (strlen(partit) > 0 && strstr(partition.name, partit) != NULL)
 			{
-				switch(partition_flag)
+				execute_command("/data/local/tmp/losetup -f", 1);
+
+				if (command_response[0] == '/' && command_response[1] == 'd' && command_response[2] == 'e' && command_response[3] == 'v' && strstr(command_response, "loop") != NULL)
 				{
-					case RW:
-						if (s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS)
-						{
-							execute_command("/data/local/tmp/losetup -f", 1);
+					printf("unsharing blocks and making RW\n");
+					s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
+					fseeko64(rom, (extent.target_data * 512)+0x464, SEEK_SET);
+					fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, rom);
 
-							if (command_response[0] == '/' && command_response[1] == 'd' && command_response[2] == 'e' && command_response[3] == 'v' && strstr(command_response, "loop") != NULL)
-							{
-								printf("unsharing blocks and making RW\n");
-								s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
-								fseeko64(rom, (extent.target_data * 512)+0x464, SEEK_SET);
-								fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, rom);
-
-								run_script(loop_offset, loop_limit, command_response, loop_sectors, argv[1]);
-							}
-							else
-							{
-								printf("Error, no free loop device!\n");
-							}
-						}
-						else
-						{
-							printf("allready RW and without shared_blocks\n");
-						}
-						break;
-
-					case RO:
-						if ((s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS) == 0)
-						{
-							printf("We can't undo feature shared_blocks and make RO!\n");
-						}
-						else
-						{
-							printf("allready RO and with shared_blocks\n");
-						}
-						break;
-
-					default:
-						printf("you didn't type rw or ro, skipping.\n");
-						break;
+					run_script(loop_offset, loop_limit, command_response, loop_sectors, argv[1]);
+				}
+				else
+				{
+					printf("Error, no free loop device!\n");
 				}
 			}
 			else
 			{
-					if (argc == 4)
+				if (argc == 3)
+				{
+					printf("skipping\n");
+				}
+				else
+				{
+					execute_command("/data/local/tmp/losetup -f", 1);
+
+					if (command_response[0] == '/' && command_response[1] == 'd' && command_response[2] == 'e' && command_response[3] == 'v' && strstr(command_response, "loop") != NULL)
 					{
-						printf("skipping\n");
+						printf("unsharing blocks and making RW\n");
+						s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
+						fseeko64(rom, (extent.target_data * 512)+0x464, SEEK_SET);
+						fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, rom);
+
+						run_script(loop_offset, loop_limit, command_response, loop_sectors, argv[1]);
 					}
 					else
 					{
-						if (s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS)
-						{
-							execute_command("/data/local/tmp/losetup -f", 1);
-
-							if (command_response[0] == '/' && command_response[1] == 'd' && command_response[2] == 'e' && command_response[3] == 'v' && strstr(command_response, "loop") != NULL)
-							{
-								printf("unsharing blocks and making RW\n");
-								s_feature_ro_compat &= ~EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS;
-								fseeko64(rom, (extent.target_data * 512)+0x464, SEEK_SET);
-								fwrite(&s_feature_ro_compat, sizeof(unsigned int), 1, rom);
-
-								run_script(loop_offset, loop_limit, command_response, loop_sectors, argv[1]);
-							}
-							else
-							{
-								printf("Error, no free loop device!\n");
-							}
-						}
-						else
-						{
-							printf("allready RW and without shared_blocks\n");
-						}
+						printf("Error, no free loop device!\n");
 					}
+				}
 			}
 		}
 		else
@@ -722,6 +675,26 @@ int main(int argc, char *argv[])
 	fclose(rom);
 
 die:
+	printf("\n=======================================================================\n");
+	printf("!!!!!! DO IN MIND IF YOU SEE ANY ERROR THAT MEAN TOOL IS FAILED! TRY AGAIN OR REINSTALL YOUR ROM !!!!!!\n");
+	printf("\n=======================================================================\n");
+	printf("In case of error file system is not repaired I can't help much since latest Android\n");
+	printf("have some protection which make our tool fail on some devices and I have no idea what cause that! No errors on e.g. Ubuntu.\n");
+	printf("Main script run.sh is generated inside /data/local/tmp folder\n");
+	printf("Fine log from run.sh execution is writen to the /data/local/tmp/script.log\n");
+	printf("So in that case you should try do it in Linux machine. Simple dump your super partition using dd (you must be root!) e.g:\n");
+	printf("dd if=/dev/block/superpartitionblockdevice of=/data/local/tmp/super.dump conv=notrunc\n");
+	printf("put your super.dump to e.g. Ubuntu Linux machine, build latest e2fstools one which suport unshare_blocks,\n");
+	printf("look into /data/local/tmp/run.sh script for further idea! Use those info from run.sh or modify it for perform needed commands\n");
+	printf("needed for make changes on your super.dump. At the end when all is well done and without errors\n");
+	printf("simple put your modified super.dump back to phone e.g. /data/local/tmp and on your phone perform via adb:\n);
+	printf("adb shell\nsu\n");
+	printf("stop\n");
+	printf("dd if=/data/local/tmp/super.dump of=/dev/block/yoursuperpartitiondevice conv=notrunc\nsync\n");
+	printf("and you are done. Do in mind tool must repair your filesystem otherwise if you see any error that mean tool is failed!\n");
+	printf("DO NOT USE oldest than superrepack version 10 otherwise your logical partitions contain ton of errors after use superrepack tool!\n");
+	printf("The same if tool fail! So if nothing help do it yourself on e.g. Ubuntu.\n");
+
 #ifdef _WIN32
 	system("pause");
 #endif
