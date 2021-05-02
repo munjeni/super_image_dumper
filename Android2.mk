@@ -667,6 +667,59 @@ LOCAL_CPPFLAGS += -Wnon-virtual-dtor \
 include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
+LOCAL_MODULE    := libavb_user
+LOCAL_SRC_FILES := avb/libavb/avb_chain_partition_descriptor.c \
+                   avb/libavb/avb_cmdline.c \
+                   avb/libavb/avb_crc32.c \
+                   avb/libavb/avb_crypto.c \
+                   avb/libavb/avb_descriptor.c \
+                   avb/libavb/avb_footer.c \
+                   avb/libavb/avb_hash_descriptor.c \
+                   avb/libavb/avb_hashtree_descriptor.c \
+                   avb/libavb/avb_kernel_cmdline_descriptor.c \
+                   avb/libavb/avb_property_descriptor.c \
+                   avb/libavb/avb_rsa.c \
+                   avb/libavb/avb_sha256.c \
+                   avb/libavb/avb_sha512.c \
+                   avb/libavb/avb_slot_verify.c \
+                   avb/libavb/avb_util.c \
+                   avb/libavb/avb_vbmeta_image.c \
+                   avb/libavb/avb_version.c \
+                   avb/libavb/avb_sysdeps_posix.c \
+                   avb/libavb_ab/avb_ab_flow.c \
+                   avb/libavb_user/avb_ops_user.cpp \
+                   avb/libavb_user/avb_user_verity.c \
+                   avb/libavb_user/avb_user_verification.c
+
+LOCAL_CFLAGS += -D_FILE_OFFSET_BITS=64 \
+                -D_POSIX_C_SOURCE=199309L \
+                -Wa,--noexecstack \
+                -Werror \
+                -Wall \
+                -Wextra \
+                -Wformat=2 \
+                -Wmissing-prototypes \
+                -Wno-psabi \
+                -Wno-unused-parameter \
+                -Wno-format \
+                -ffunction-sections \
+                -fstack-protector-strong \
+                -g \
+                -DAVB_ENABLE_DEBUG \
+                -DAVB_COMPILATION \
+                -DAVB_AB_I_UNDERSTAND_LIBAVB_AB_IS_DEPRECATED \
+                -Iavb/libavb \
+                -Iavb \
+                -Icore/libcutils/include \
+                -Icore/fs_mgr/include \
+                -Icore/fs_mgr/include_fstab
+
+LOCAL_CPPFLAGS += -Wnon-virtual-dtor \
+                  -fno-strict-aliasing
+
+include $(BUILD_STATIC_LIBRARY)
+
+include $(CLEAR_VARS)
 LOCAL_MODULE    := libfec
 LOCAL_SRC_FILES := extras/libfec/fec_open.cpp \
                    extras/libfec/fec_read.cpp \
@@ -1170,7 +1223,9 @@ include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := superrepack.arm64_pie
-LOCAL_SRC_FILES := superrepack.c
-LOCAL_CFLAGS += -Iinclude
-LOCAL_STATIC_LIBRARIES := libfs_mgr
+LOCAL_SRC_FILES := superrepack.cpp
+LOCAL_CFLAGS += -Iinclude -Icore/base/include
+LOCAL_CPPFLAGS += -Iinclude -Icore/base/include -Iavb
+LOCAL_STATIC_LIBRARIES := libfs_avb \
+                          libavb_user
 include $(BUILD_EXECUTABLE)

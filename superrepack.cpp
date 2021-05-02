@@ -138,6 +138,10 @@
 
 #include "metadata_format.h"
 
+#include <sysexits.h>
+#include <android-base/properties.h>
+#include <libavb_user/libavb_user.h>
+
 #include "e2fsck_bin.h"
 #include "resize2fs_bin.h"
 #include "losetup_bin.h"
@@ -293,6 +297,182 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 	return true;
 }
 
+static bool g_opt_force = true;
+
+bool is_locked_and_not_forced(void)
+{
+	std::string device_state;
+	device_state = android::base::GetProperty("ro.boot.vbmeta.device_state", "");
+
+	if (device_state == "locked" && !g_opt_force)
+	{
+		printf("Manipulating vbmeta on a LOCKED device will likely cause the\n"
+			"device to fail booting with little chance of recovery.\n"
+			"\n"
+			"If you really want to do this, use the --force option.\n"
+			"\n"
+			"ONLY DO THIS IF YOU KNOW WHAT YOU ARE DOING.\n"
+			"\n");
+
+		return false;
+	}
+
+	return true;
+}
+
+/* Function to enable and disable verification. The |ops| parameter
+ * should be an |AvbOps| from libavb_user.
+ */
+int do_set_verification(AvbOps *ops, const std::string &ab_suffix, bool enable_verification)
+{
+	bool verification_enabled;
+
+	if (!avb_user_verification_get(ops, ab_suffix.c_str(), &verification_enabled))
+	{
+		printf("Error getting whether verification is enabled.\n");
+		return EX_SOFTWARE;
+	}
+
+	if ((verification_enabled && enable_verification) || (!verification_enabled && !enable_verification))
+	{
+		printf("verification is already %s", verification_enabled ? "enabled" : "disabled");
+
+		if (ab_suffix != "")
+		{
+			printf(" on slot with suffix %s", ab_suffix.c_str());
+		}
+
+		printf(".\n");
+		return EX_OK;
+	}
+
+	if (!is_locked_and_not_forced())
+	{
+		return EX_NOPERM;
+	}
+
+	if (!avb_user_verification_set(ops, ab_suffix.c_str(), enable_verification))
+	{
+		printf("Error setting verification.\n");
+		return EX_SOFTWARE;
+	}
+
+	printf("Successfully %s verification", enable_verification ? "enabled" : "disabled");
+
+	if (ab_suffix != "")
+	{
+		printf(" on slot with suffix %s", ab_suffix.c_str());
+	}
+  
+	printf(". Reboot the device for changes to take effect.\n");
+	return EX_OK;
+}
+
+/* Function to query if verification. The |ops| parameter should be an
+ * |AvbOps| from libavb_user.
+ */
+int do_get_verification(AvbOps *ops, const std::string &ab_suffix)
+{
+	bool verification_enabled;
+
+	if (!avb_user_verification_get(ops, ab_suffix.c_str(), &verification_enabled))
+	{
+		printf("Error getting whether verification is enabled.\n");
+		return EX_SOFTWARE;
+	}
+
+	printf("verification is %s", verification_enabled ? "enabled" : "disabled");
+
+	if (ab_suffix != "")
+	{
+		printf(" on slot with suffix %s", ab_suffix.c_str());
+	}
+
+	printf(".\n");
+	return EX_OK;
+}
+
+/* Function to enable and disable dm-verity. The |ops| parameter
+ * should be an |AvbOps| from libavb_user.
+ */
+int do_set_verity(AvbOps *ops, const std::string &ab_suffix, bool enable_verity)
+{
+	bool verity_enabled;
+
+	if (!avb_user_verity_get(ops, ab_suffix.c_str(), &verity_enabled))
+	{
+		printf("Error getting whether verity is enabled.\n");
+		return EX_SOFTWARE;
+	}
+
+	if ((verity_enabled && enable_verity) || (!verity_enabled && !enable_verity))
+	{
+		printf("verity is already %s", verity_enabled ? "enabled" : "disabled");
+
+		if (ab_suffix != "")
+		{
+			printf(" on slot with suffix %s", ab_suffix.c_str());
+		}
+
+		printf(".\n");
+		return EX_OK;
+	}
+
+	if (!is_locked_and_not_forced())
+	{
+		return EX_NOPERM;
+	}
+
+	if (!avb_user_verity_set(ops, ab_suffix.c_str(), enable_verity))
+	{
+		printf("Error setting verity.\n");
+		return EX_SOFTWARE;
+	}
+
+	printf("Successfully %s verity", enable_verity ? "enabled" : "disabled");
+
+	if (ab_suffix != "")
+	{
+		printf(" on slot with suffix %s", ab_suffix.c_str());
+	}
+
+	printf(". Reboot the device for changes to take effect.\n");
+	return EX_OK;
+}
+
+/* Function to query if dm-verity is enabled. The |ops| parameter
+ * should be an |AvbOps| from libavb_user.
+ */
+int do_get_verity(AvbOps *ops, const std::string &ab_suffix)
+{
+	bool verity_enabled;
+
+	if (!avb_user_verity_get(ops, ab_suffix.c_str(), &verity_enabled))
+	{
+		printf("Error getting whether verity is enabled.\n");
+		return EX_SOFTWARE;
+	}
+
+	printf("verity is %s", verity_enabled ? "enabled" : "disabled");
+
+	if (ab_suffix != "")
+	{
+		printf(" on slot with suffix %s", ab_suffix.c_str());
+	}
+
+	printf(".\n");
+	return EX_OK;
+}
+
+/* Helper function to get A/B suffix, if any. If the device isn't
+ * using A/B the empty string is returned. Otherwise either "_a",
+ * "_b", ... is returned.
+ */
+std::string get_ab_suffix(void)
+{
+	return android::base::GetProperty("ro.boot.slot_suffix", "");
+}
+
 int main(int argc, char *argv[])
 {
 	LpMetadataGeometry geometry;
@@ -361,6 +541,20 @@ int main(int argc, char *argv[])
 		ret = UNABLE_TO_DETERMINE_SELINUX;
 		goto die;
 	}
+
+	AvbOps *ops = avb_ops_user_new();
+
+	if (ops == nullptr)
+	{
+		printf("Error getting AVB ops.\n");
+		ret = EX_SOFTWARE;
+		return ret;
+	}
+
+	char *ab_suffix = get_ab_suffix();
+
+	do_set_verification(ops, ab_suffix, false);
+	do_set_verity(ops, ab_suffix, false);
 
 	memset(partit, 0, sizeof(partit));
 
@@ -687,7 +881,7 @@ die:
 	printf("put your super.dump to e.g. Ubuntu Linux machine, build latest e2fstools one which suport unshare_blocks,\n");
 	printf("look into /data/local/tmp/run.sh script for further idea! Use those info from run.sh or modify it for perform needed commands\n");
 	printf("needed for make changes on your super.dump. At the end when all is well done and without errors\n");
-	printf("simple put your modified super.dump back to phone e.g. /data/local/tmp and on your phone perform via adb:\n);
+	printf("simple put your modified super.dump back to phone e.g. /data/local/tmp and on your phone perform via adb:\n");
 	printf("adb shell\nsu\n");
 	printf("stop\n");
 	printf("dd if=/data/local/tmp/super.dump of=/dev/block/yoursuperpartitiondevice conv=notrunc\nsync\n");
