@@ -494,6 +494,9 @@ int main(int argc, char *argv[])
 	unsigned long long ext4_file_size;
 	unsigned int s_feature_ro_compat = 0;
 
+	AvbOps *ops = NULL;
+	std::string ab_suffix;
+
 	printf("---------------------------------------------------------\n");
 	printf("Super image repacker v_%d by munjeni @ xda 2021)\n", VERSION);
 	printf("---------------------------------------------------------\n\n");
@@ -542,16 +545,16 @@ int main(int argc, char *argv[])
 		goto die;
 	}
 
-	AvbOps *ops = avb_ops_user_new();
+	ops = avb_ops_user_new();
 
 	if (ops == nullptr)
 	{
 		printf("Error getting AVB ops.\n");
 		ret = EX_SOFTWARE;
-		return ret;
+		goto die;
 	}
 
-	char *ab_suffix = get_ab_suffix();
+	ab_suffix = get_ab_suffix();
 
 	do_set_verification(ops, ab_suffix, false);
 	do_set_verity(ops, ab_suffix, false);
