@@ -260,7 +260,7 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 
 	fwrite(&cc, 1, 1, fp);
 	fprintf(fp, "/system/bin/sh\n\n");
-	fprintf(fp, "/data/local/tmp/losetup --offset=%s --sizelimit=%s %s %s >>/data/local/tmp/script.log\n", offset, limit, response, file);
+	fprintf(fp, "/data/local/tmp/losetup --offset=%s --sizelimit=%s %s %s >/data/local/tmp/script.log\n", offset, limit, response, file);
 	fprintf(fp, "/data/local/tmp/resize2fs %s %s >>/data/local/tmp/script.log\n", response, sectors);
 	fprintf(fp, "sync >>/data/local/tmp/script.log\n");
 	fprintf(fp, "/data/local/tmp/e2fsck -fy %s >>/data/local/tmp/script.log\n", response);
