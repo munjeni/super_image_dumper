@@ -92,6 +92,10 @@ superrepack.arm64_pie:
 	@cp -fr libs/arm64-v8a/lptools ./lptools
 	@cp -fr libs/arm64-v8a/superrepack.arm64_pie ./superrepack.arm64_pie
 
+superrepack.x86_64:
+	${CC} -Wall -O3 -Iinclude  superrepack.cpp -o superrepack_x86_64
+	${STRIP} superrepack_x86_64
+
 superunpack.i386-apple-darwin11: superunpack.c version.h
 	${CCAPPLE} ${CROSS_CFLAGS} superunpack.c -o superunpack.i386-apple-darwin11
 	${CCAPPLESTRIP} superunpack.i386-apple-darwin11
@@ -117,4 +121,4 @@ clean:
 .PHONY: distclean
 distclean:
 	rm -rf *.gz *.o *.rc *.res libs obj superunpack.exe superunpack.x64 superunpack.i386 superunpack.arm32 superunpack.arm64 superunpack.arm64_pie superrepack.arm64_pie superunpack.i386-apple-darwin11 superunpack.x86_64-apple-darwin11 superunpack
-	rm -rf zlib fmtlib core extras android_external_e2fsprogs squashfs-tools fec avb boringssl pcre selinux gsid vold jsoncpp resize2fs e2fsck simg2img img2simg lptools lptools.cc util-linux-2.27
+	rm -rf zlib fmtlib core extras android_external_e2fsprogs squashfs-tools fec avb boringssl pcre selinux gsid vold jsoncpp resize2fs e2fsck simg2img img2simg lptools lptools.cc util-linux-2.27 superrepack_x86_64

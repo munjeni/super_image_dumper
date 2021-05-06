@@ -138,13 +138,18 @@
 
 #include "metadata_format.h"
 
+#ifndef __linux__
 #include <sysexits.h>
 #include <android-base/properties.h>
 #include <libavb_user/libavb_user.h>
+#endif
 
 #include "e2fsck_bin.h"
 #include "resize2fs_bin.h"
+
+#ifndef __linux__
 #include "losetup_bin.h"
+#endif
 
 #define EXT4_FEATURE_RO_COMPAT_SHARED_BLOCKS	0x4000
 
@@ -176,7 +181,7 @@ static char loop_offset[16];
 static char loop_limit[16];
 static char loop_sectors[16];
 
-void execute_command(char *command, bool search_and_replace)
+void execute_command(const char *command, bool search_and_replace)
 {
 
 	FILE *fp = NULL;
@@ -234,12 +239,19 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 {
 	FILE *fp = NULL;
 	char cc = 0x23;
+#ifndef __linux__
 	char script[] = "/data/local/tmp/run.sh";
+#else
+	char script[] = "./run.sh";
+#endif
 	char mode[] = "0755";
 	unsigned int m = strtol(mode, 0, 8);
 
+#ifndef __linux__
 	execute_command("/data/local/tmp/losetup -f", 1);
-
+#else
+	execute_command("losetup -f", 1);
+#endif
 	if (command_response[0] == 'P')
 	{
 		printf("Error popen!\n");
@@ -258,9 +270,10 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 		return false;
 	}
 
+#ifndef __linux__
 	fwrite(&cc, 1, 1, fp);
 	fprintf(fp, "/system/bin/sh\n\n");
-	fprintf(fp, "/data/local/tmp/losetup --offset=%s --sizelimit=%s %s %s >/data/local/tmp/script.log\n", offset, limit, response, file);
+	fprintf(fp, "/data/local/tmp/losetup --offset=%s --sizelimit=%s %s %s >>/data/local/tmp/script.log\n", offset, limit, response, file);
 	fprintf(fp, "/data/local/tmp/resize2fs %s %s >>/data/local/tmp/script.log\n", response, sectors);
 	fprintf(fp, "sync >>/data/local/tmp/script.log\n");
 	fprintf(fp, "/data/local/tmp/e2fsck -fy %s >>/data/local/tmp/script.log\n", response);
@@ -268,7 +281,22 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 	fprintf(fp, "/data/local/tmp/e2fsck -fy -E unshare_blocks %s >>/data/local/tmp/script.log\n", response);
 	fprintf(fp, "sync >>/data/local/tmp/script.log\n");
 	fprintf(fp, "/data/local/tmp/losetup -d %s >>/data/local/tmp/script.log\n", response);
+	fprintf(fp, "echo Ok");
 	fprintf(fp, "\nexit 0\n");
+#else
+	fwrite(&cc, 1, 1, fp);
+	fprintf(fp, "/bin/sh\n\n");
+	fprintf(fp, "losetup --offset=%s --sizelimit=%s %s %s >>./script.log\n", offset, limit, response, file);
+	fprintf(fp, "./resize2fs %s %s >>./script.log\n", response, sectors);
+	fprintf(fp, "sync >>./script.log\n");
+	fprintf(fp, "./e2fsck -fy %s >>./script.log\n", response);
+	fprintf(fp, "sync >>./script.log\n");
+	fprintf(fp, "./e2fsck -fy -E unshare_blocks %s >>./script.log\n", response);
+	fprintf(fp, "sync >>./script.log\n");
+	fprintf(fp, "losetup -d %s >>./script.log\n", response);
+	fprintf(fp, "echo Ok");
+	fprintf(fp, "\nexit 0\n");
+#endif
 
 	fclose(fp);
 
@@ -297,6 +325,7 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 	return true;
 }
 
+#ifndef __linux__
 static bool g_opt_force = true;
 
 bool is_locked_and_not_forced(void)
@@ -472,6 +501,7 @@ std::string get_ab_suffix(void)
 {
 	return android::base::GetProperty("ro.boot.slot_suffix", "");
 }
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -494,14 +524,16 @@ int main(int argc, char *argv[])
 	unsigned long long ext4_file_size;
 	unsigned int s_feature_ro_compat = 0;
 
+#ifndef __linux__
 	AvbOps *ops = NULL;
 	std::string ab_suffix;
+#endif
 
 	printf("---------------------------------------------------------\n");
 	printf("Super image repacker v_%d by munjeni @ xda 2021)\n", VERSION);
 	printf("---------------------------------------------------------\n\n");
 
-	if (argc < 2)
+	if (argc < 2 || argc > 3)
 	{
 		printf("USAGE: (With no arguments all partitions going to be RW and shared_blocks removed!)\n");
 		printf("%s [image or block device] [search by string]\n", argv[0]);
@@ -516,11 +548,18 @@ int main(int argc, char *argv[])
 
 	if ((unsigned int)getuid() != 0)
 	{
-		printf("Error, you must root your device first!\n");
+		printf("Error, you must be root!\n");
 		ret = NOT_A_ROOTED_YET;
 		goto die;
 	}
 
+#ifndef __linux__
+	execute_command("echo \"\" > /data/local/tmp/script.log", 1);
+#else
+	execute_command("echo \"\" > ./script.log", 1);
+#endif
+
+#ifndef __linux__
 	execute_command("getenforce", 1);
 
 	if (command_response[0] == 'E' && command_response[1] == 'n')
@@ -558,6 +597,7 @@ int main(int argc, char *argv[])
 
 	do_set_verification(ops, ab_suffix, false);
 	do_set_verity(ops, ab_suffix, false);
+#endif
 
 	memset(partit, 0, sizeof(partit));
 
@@ -571,6 +611,7 @@ int main(int argc, char *argv[])
 		printf("Removing shared_blocks and making RW on all partitions!\n");
 	}
 
+#ifndef __linux__
 	if ((bp = fopen("/data/local/tmp/losetup", "wb")) == NULL)
 	{
 		printf("Error, unable to open losetup for write!\n");
@@ -594,8 +635,13 @@ int main(int argc, char *argv[])
 		ret = MISSING_TOOLS;
 		goto die;
 	}
+#endif
 
+#ifndef __linux__
 	if ((bp = fopen("/data/local/tmp/e2fsck", "wb")) == NULL)
+#else
+	if ((bp = fopen("./e2fsck", "wb")) == NULL)
+#endif
 	{
 		printf("Error, unable to open e2fsck for write!\n");
 		ret = MISSING_TOOLS;
@@ -612,14 +658,22 @@ int main(int argc, char *argv[])
 
 	fclose(bp);
 
+#ifndef __linux__
 	if (chmod("/data/local/tmp/e2fsck", m) < 0)
+#else
+	if (chmod("./e2fsck", m) < 0)
+#endif
 	{
 		printf("Error in chmod(e2fsck, %s) - %d (%s)\n", mode, errno, strerror(errno));
 		ret = MISSING_TOOLS;
 		goto die;
 	}
 
+#ifndef __linux__
 	if ((bp = fopen("/data/local/tmp/resize2fs", "wb")) == NULL)
+#else
+	if ((bp = fopen("./resize2fs", "wb")) == NULL)
+#endif
 	{
 		printf("Error, unable to open resize2fs for write!\n");
 		ret = MISSING_TOOLS;
@@ -636,7 +690,11 @@ int main(int argc, char *argv[])
 
 	fclose(bp);
 
+#ifndef __linux__
 	if (chmod("/data/local/tmp/resize2fs", m) < 0)
+#else
+	if (chmod("./resize2fs", m) < 0)
+#endif
 	{
 		printf("Error in chmod(resize2fs, %s) - %d (%s)\n", mode, errno, strerror(errno));
 		ret = MISSING_TOOLS;
@@ -806,8 +864,11 @@ int main(int argc, char *argv[])
 
 			if (strlen(partit) > 0 && strstr(partition.name, partit) != NULL)
 			{
+#ifndef __linux__
 				execute_command("/data/local/tmp/losetup -f", 1);
-
+#else
+				execute_command("losetup -f", 1);
+#endif
 				if (command_response[0] == '/' && command_response[1] == 'd' && command_response[2] == 'e' && command_response[3] == 'v' && strstr(command_response, "loop") != NULL)
 				{
 					printf("unsharing blocks and making RW\n");
@@ -830,7 +891,11 @@ int main(int argc, char *argv[])
 				}
 				else
 				{
+#ifndef __linux__
 					execute_command("/data/local/tmp/losetup -f", 1);
+#else
+					execute_command("losetup -f", 1);
+#endif
 
 					if (command_response[0] == '/' && command_response[1] == 'd' && command_response[2] == 'e' && command_response[3] == 'v' && strstr(command_response, "loop") != NULL)
 					{
@@ -872,6 +937,8 @@ int main(int argc, char *argv[])
 	fclose(rom);
 
 die:
+
+#ifndef __linux__
 	printf("\n=======================================================================\n");
 	printf("!!!!!! DO IN MIND IF YOU SEE ANY ERROR THAT MEAN TOOL IS FAILED! TRY AGAIN OR REINSTALL YOUR ROM !!!!!!\n");
 	printf("\n=======================================================================\n");
@@ -891,6 +958,13 @@ die:
 	printf("and you are done. Do in mind tool must repair your filesystem otherwise if you see any error that mean tool is failed!\n");
 	printf("DO NOT USE oldest than superrepack version 10 otherwise your logical partitions contain ton of errors after use superrepack tool!\n");
 	printf("The same if tool fail! So if nothing help do it yourself on e.g. Ubuntu.\n");
+#else
+	printf("\n=======================================================================\n");
+	printf("!!!!!! DO IN MIND IF YOU SEE ANY ERROR THAT MEAN TOOL IS FAILED !!!!!!\n");
+	printf("\n=======================================================================\n");
+	printf("If all is completed without error you are ready to restore your dump on your phone with command:\n");
+	printf("dd if=/data/local/tmp/super.dump of=/dev/block/yoursuperpartitiondevice conv=notrunc\nsync\n");
+#endif
 
 #ifdef _WIN32
 	system("pause");
