@@ -138,7 +138,7 @@
 
 #include "metadata_format.h"
 
-#ifndef __linux__
+#ifdef __ANDROID__
 #include <sysexits.h>
 #include <android-base/properties.h>
 #include <libavb_user/libavb_user.h>
@@ -147,7 +147,7 @@
 #include "e2fsck_bin.h"
 #include "resize2fs_bin.h"
 
-#ifndef __linux__
+#ifdef __ANDROID__
 #include "losetup_bin.h"
 #endif
 
@@ -239,7 +239,7 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 {
 	FILE *fp = NULL;
 	char cc = 0x23;
-#ifndef __linux__
+#ifdef __ANDROID__
 	char script[] = "/data/local/tmp/run.sh";
 #else
 	char script[] = "./run.sh";
@@ -247,7 +247,7 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 	char mode[] = "0755";
 	unsigned int m = strtol(mode, 0, 8);
 
-#ifndef __linux__
+#ifdef __ANDROID__
 	execute_command("/data/local/tmp/losetup -f", 1);
 #else
 	execute_command("losetup -f", 1);
@@ -270,7 +270,7 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 		return false;
 	}
 
-#ifndef __linux__
+#ifdef __ANDROID__
 	fwrite(&cc, 1, 1, fp);
 	fprintf(fp, "/system/bin/sh\n\n");
 	fprintf(fp, "/data/local/tmp/losetup --offset=%s --sizelimit=%s %s %s >>/data/local/tmp/script.log\n", offset, limit, response, file);
@@ -325,7 +325,7 @@ bool run_script(char *offset, char *limit, char *response, char *sectors, char *
 	return true;
 }
 
-#ifndef __linux__
+#ifdef __ANDROID__
 static bool g_opt_force = true;
 
 bool is_locked_and_not_forced(void)
@@ -524,7 +524,7 @@ int main(int argc, char *argv[])
 	unsigned long long ext4_file_size;
 	unsigned int s_feature_ro_compat = 0;
 
-#ifndef __linux__
+#ifdef __ANDROID__
 	AvbOps *ops = NULL;
 	std::string ab_suffix;
 #endif
@@ -553,13 +553,13 @@ int main(int argc, char *argv[])
 		goto die;
 	}
 
-#ifndef __linux__
+#ifdef __ANDROID__
 	execute_command("echo \"\" > /data/local/tmp/script.log", 1);
 #else
 	execute_command("echo \"\" > ./script.log", 1);
 #endif
 
-#ifndef __linux__
+#ifdef __ANDROID__
 	execute_command("getenforce", 1);
 
 	if (command_response[0] == 'E' && command_response[1] == 'n')
@@ -611,7 +611,7 @@ int main(int argc, char *argv[])
 		printf("Removing shared_blocks and making RW on all partitions!\n");
 	}
 
-#ifndef __linux__
+#ifdef __ANDROID__
 	if ((bp = fopen("/data/local/tmp/losetup", "wb")) == NULL)
 	{
 		printf("Error, unable to open losetup for write!\n");
@@ -637,7 +637,7 @@ int main(int argc, char *argv[])
 	}
 #endif
 
-#ifndef __linux__
+#ifdef __ANDROID__
 	if ((bp = fopen("/data/local/tmp/e2fsck", "wb")) == NULL)
 #else
 	if ((bp = fopen("./e2fsck", "wb")) == NULL)
@@ -658,7 +658,7 @@ int main(int argc, char *argv[])
 
 	fclose(bp);
 
-#ifndef __linux__
+#ifdef __ANDROID__
 	if (chmod("/data/local/tmp/e2fsck", m) < 0)
 #else
 	if (chmod("./e2fsck", m) < 0)
@@ -669,7 +669,7 @@ int main(int argc, char *argv[])
 		goto die;
 	}
 
-#ifndef __linux__
+#ifdef __ANDROID__
 	if ((bp = fopen("/data/local/tmp/resize2fs", "wb")) == NULL)
 #else
 	if ((bp = fopen("./resize2fs", "wb")) == NULL)
@@ -690,7 +690,7 @@ int main(int argc, char *argv[])
 
 	fclose(bp);
 
-#ifndef __linux__
+#ifdef __ANDROID__
 	if (chmod("/data/local/tmp/resize2fs", m) < 0)
 #else
 	if (chmod("./resize2fs", m) < 0)
@@ -864,7 +864,7 @@ int main(int argc, char *argv[])
 
 			if (strlen(partit) > 0 && strstr(partition.name, partit) != NULL)
 			{
-#ifndef __linux__
+#ifdef __ANDROID__
 				execute_command("/data/local/tmp/losetup -f", 1);
 #else
 				execute_command("losetup -f", 1);
@@ -891,7 +891,7 @@ int main(int argc, char *argv[])
 				}
 				else
 				{
-#ifndef __linux__
+#ifdef __ANDROID__
 					execute_command("/data/local/tmp/losetup -f", 1);
 #else
 					execute_command("losetup -f", 1);
@@ -938,29 +938,15 @@ int main(int argc, char *argv[])
 
 die:
 
-#ifndef __linux__
+#ifdef __ANDROID__
 	printf("\n=======================================================================\n");
-	printf("!!!!!! DO IN MIND IF YOU SEE ANY ERROR THAT MEAN TOOL IS FAILED! TRY AGAIN OR REINSTALL YOUR ROM !!!!!!\n");
+	printf("!!!!!! DO IN MIND IF YOU SEE ANY ERROR THAT MEAN TOOL IS FAILED, YOU NEED RUN TOOL 4-5 TIMES UNTIL ALL ERRORS DISAPEAR !!!!!!\n");
+	printf("!!!!!! Read /data/local/tmp/script.log after every run and make sure it not contain errors, when there is no errors you are done! !!!!!!\n");
 	printf("\n=======================================================================\n");
-	printf("In case of error file system is not repaired I can't help much since latest Android\n");
-	printf("have some protection which make our tool fail on some devices and I have no idea what cause that! No errors on e.g. Ubuntu.\n");
-	printf("Main script run.sh is generated inside /data/local/tmp folder\n");
-	printf("Fine log from run.sh execution is writen to the /data/local/tmp/script.log\n");
-	printf("So in that case you should try do it in Linux machine. Simple dump your super partition using dd (you must be root!) e.g:\n");
-	printf("dd if=/dev/block/superpartitionblockdevice of=/data/local/tmp/super.dump conv=notrunc\n");
-	printf("put your super.dump to e.g. Ubuntu Linux machine, build latest e2fstools one which suport unshare_blocks,\n");
-	printf("look into /data/local/tmp/run.sh script for further idea! Use those info from run.sh or modify it for perform needed commands\n");
-	printf("needed for make changes on your super.dump. At the end when all is well done and without errors\n");
-	printf("simple put your modified super.dump back to phone e.g. /data/local/tmp and on your phone perform via adb:\n");
-	printf("adb shell\nsu\n");
-	printf("stop\n");
-	printf("dd if=/data/local/tmp/super.dump of=/dev/block/yoursuperpartitiondevice conv=notrunc\nsync\n");
-	printf("and you are done. Do in mind tool must repair your filesystem otherwise if you see any error that mean tool is failed!\n");
-	printf("DO NOT USE oldest than superrepack version 10 otherwise your logical partitions contain ton of errors after use superrepack tool!\n");
-	printf("The same if tool fail! So if nothing help do it yourself on e.g. Ubuntu.\n");
 #else
 	printf("\n=======================================================================\n");
-	printf("!!!!!! DO IN MIND IF YOU SEE ANY ERROR THAT MEAN TOOL IS FAILED !!!!!!\n");
+	printf("!!!!!! DO IN MIND IF YOU SEE ANY ERROR THAT MEAN TOOL IS FAILED, YOU NEED RUN TOOL 4-5 TIMES UNTIL ALL ERRORS DISAPEAR !!!!!!\n");
+	printf("!!!!!! Read script.log after every run and make sure it not contain errors, when there is no errors you are done! !!!!!!\n");
 	printf("\n=======================================================================\n");
 	printf("If all is completed without error you are ready to restore your dump on your phone with command:\n");
 	printf("dd if=/data/local/tmp/super.dump of=/dev/block/yoursuperpartitiondevice conv=notrunc\nsync\n");

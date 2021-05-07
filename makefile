@@ -93,8 +93,8 @@ superrepack.arm64_pie:
 	@cp -fr libs/arm64-v8a/superrepack.arm64_pie ./superrepack.arm64_pie
 
 superrepack.x86_64:
-	${CC} -Wall -O3 -Iinclude  superrepack.cpp -o superrepack_x86_64
-	${STRIP} superrepack_x86_64
+	${CC} -Wall -O3 -Iinclude  superrepack.cpp -o superrepack.x86_64
+	${STRIP} superrepack.x86_64
 
 superunpack.i386-apple-darwin11: superunpack.c version.h
 	${CCAPPLE} ${CROSS_CFLAGS} superunpack.c -o superunpack.i386-apple-darwin11
