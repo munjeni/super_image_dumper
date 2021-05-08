@@ -1224,8 +1224,17 @@ include $(BUILD_EXECUTABLE)
 include $(CLEAR_VARS)
 LOCAL_MODULE := superrepack.arm64_pie
 LOCAL_SRC_FILES := superrepack.cpp
-LOCAL_CFLAGS += -Iinclude -Icore/base/include
-LOCAL_CPPFLAGS += -Iinclude -Icore/base/include -Iavb
+
+LOCAL_CFLAGS += -Iinclude \
+                -Icore/base/include \
+                -Iselinux/libselinux/include
+
+LOCAL_CPPFLAGS += -Iinclude \
+                  -Icore/base/include -Iavb \
+                  -Iselinux/libselinux/include
+
 LOCAL_STATIC_LIBRARIES := libfs_avb \
-                          libavb_user
+                          libavb_user \
+                          libselinux
+
 include $(BUILD_EXECUTABLE)

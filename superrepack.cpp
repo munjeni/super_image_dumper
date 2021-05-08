@@ -142,6 +142,7 @@
 #include <sysexits.h>
 #include <android-base/properties.h>
 #include <libavb_user/libavb_user.h>
+#include <selinux/selinux.h>
 #endif
 
 #include "e2fsck_bin.h"
@@ -167,6 +168,7 @@
 #define SELINUX_ENFORCED 7
 #define UNABLE_TO_DETERMINE_SELINUX 8
 #define MISSING_TOOLS 9
+#define SELINUX_PROBLEM 10
 
 void fread_unus_res(void *ptr, size_t size, size_t nmemb, FILE *stream) {
 	size_t in;
@@ -560,28 +562,54 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef __ANDROID__
-	execute_command("getenforce", 1);
 
-	if (command_response[0] == 'E' && command_response[1] == 'n')
+	int se;
+	se = is_selinux_enabled();
+
+	if (se < 0)
 	{
-		printf("Error, your device is selinux enforced!\n");
-		printf("Put selinux in permisive mode first by command: setenforce 0\n");
-		ret = SELINUX_ENFORCED;
+		printf("Fail to determine selinux enabled state.\n%s\n", strerror(errno));
+		ret = SELINUX_PROBLEM;
 		goto die;
 	}
-
-	if (command_response[0] == 'P' && command_response[1] != 'e')
+	else
 	{
-		printf("Error, getenforce tool is missing, unable to determine selinux status!\n");
-		ret = UNABLE_TO_DETERMINE_SELINUX;
-		goto die;
-	}
+		if (se == 1)
+		{
+			se = security_getenforce();
 
-	if (command_response[0] == 'N')
-	{
-		printf("Error, getenforce null reply, unable to determine selinux status!\n");
-		ret = UNABLE_TO_DETERMINE_SELINUX;
-		goto die;
+			if (se < 0)
+			{
+				printf("Fail to determine selinux enforcing status.\n%s\n", strerror(errno));
+				ret = SELINUX_PROBLEM;
+				goto die;
+			}
+			else
+			{
+				if (se == 0)
+				{
+					printf("Selinux is allready in permissive mode.\n");
+				}
+
+				if (se > 0)
+				{
+					printf("We going to set selinux to permissive mode!\n");
+
+					se = security_setenforce(0);
+
+					if (se < 0)
+					{
+						printf("Error setting selinux to permissive mode!\n%s\n", strerror(errno));
+						ret = SELINUX_PROBLEM;
+						goto die;
+					}
+				}
+			}
+		}
+		else
+		{
+			printf("Selinux is allready disabled.\n");
+		}
 	}
 
 	ops = avb_ops_user_new();
